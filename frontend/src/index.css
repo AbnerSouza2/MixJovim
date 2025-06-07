@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  
+  body {
+    @apply bg-gray-950 text-white;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-gradient-mixjovim hover:bg-mixjovim-red-dark text-white px-6 py-2 rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-xl;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-medium transition-colors border border-gray-600 hover:border-gray-500;
+  }
+  
+  .btn-gold {
+    @apply bg-gradient-gold hover:bg-mixjovim-gold text-gray-900 px-6 py-2 rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-xl;
+  }
+  
+  .input-field {
+    @apply bg-gray-800 border border-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-mixjovim-gold focus:border-transparent transition-all duration-200;
+  }
+  
+  .card {
+    @apply bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-lg;
+  }
+  
+  .card-mixjovim {
+    @apply bg-gradient-to-br from-gray-900 to-gray-800 border border-mixjovim-red/20 rounded-xl p-6 shadow-lg;
+  }
+  
+  .sidebar-item {
+    @apply flex items-center px-4 py-3 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-all duration-200 cursor-pointer;
+  }
+  
+  .sidebar-item.active {
+    @apply text-white bg-gradient-mixjovim shadow-lg;
+  }
+  
+  .logo-mixjovim {
+    @apply bg-gradient-mixjovim text-white rounded-full flex items-center justify-center font-bold text-2xl shadow-lg;
+  }
+  
+  .accent-gold {
+    @apply text-mixjovim-gold;
+  }
+  
+  .accent-red {
+    @apply text-mixjovim-red;
+  }
+  
+  .stat-card {
+    @apply card hover:shadow-xl transition-all duration-200 hover:scale-105;
+  }
+  
+  .stat-card-red {
+    @apply stat-card border-l-4 border-l-mixjovim-red;
+  }
+  
+  .stat-card-gold {
+    @apply stat-card border-l-4 border-l-mixjovim-gold;
+  }
+} 
