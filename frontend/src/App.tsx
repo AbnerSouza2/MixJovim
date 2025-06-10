@@ -6,6 +6,8 @@ import AddProduct from './pages/AddProduct'
 import PDV from './pages/PDV'
 import Financeiro from './pages/Financeiro'
 import Funcionarios from './pages/Funcionarios'
+import RelatorioVendas from './pages/RelatorioVendas'
+import RelatorioProdutos from './pages/RelatorioProdutos'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 
@@ -59,7 +61,7 @@ function AppRoutes() {
       <Route 
         path="/funcionarios" 
         element={
-          <ProtectedRoute adminOnly={true}>
+          <ProtectedRoute requiredPermission="admin_only">
             <Layout>
               <Funcionarios />
             </Layout>
@@ -67,8 +69,32 @@ function AppRoutes() {
         } 
       />
       <Route 
+        path="/relatorios/vendas" 
+        element={
+          <ProtectedRoute requiredPermission="reports">
+            <Layout>
+              <RelatorioVendas />
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/relatorios/produtos" 
+        element={
+          <ProtectedRoute requiredPermission="reports">
+            <Layout>
+              <RelatorioProdutos />
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
         path="/" 
-        element={<Navigate to={isAuthenticated ? getDefaultRoute() : "/login"} />} 
+        element={
+          isAuthenticated ? 
+            <Navigate to={getDefaultRoute()} /> : 
+            <Navigate to="/login" />
+        } 
       />
     </Routes>
   )
@@ -76,13 +102,13 @@ function AppRoutes() {
 
 function App() {
   return (
-    <div className="dark min-h-screen bg-gray-950">
+    <AuthProvider>
       <Router>
-        <AuthProvider>
+        <div className="min-h-screen bg-gray-950">
           <AppRoutes />
-        </AuthProvider>
+        </div>
       </Router>
-    </div>
+    </AuthProvider>
   )
 }
 

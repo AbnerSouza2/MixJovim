@@ -15,10 +15,13 @@ router.post('/login', async (req, res) => {
     }
 
     const db = getDatabase()
-    const user = await db.get(
+    const [userRows] = await db.execute(
       'SELECT id, username, password, role, permissions FROM users WHERE username = ?',
       [username]
     )
+
+    const users = userRows as any[]
+    const user = users[0]
 
     if (!user) {
       return res.status(401).json({ error: 'Credenciais inválidas' })
@@ -35,7 +38,7 @@ router.post('/login', async (req, res) => {
     // Parse permissions
     let permissions = {}
     try {
-      permissions = user.permissions ? JSON.parse(user.permissions) : {
+      permissions = user.permissions || {
         pdv: false,
         products: false,
         dashboard: false,
@@ -89,31 +92,33 @@ router.post('/users', authenticateToken, requireAdmin, async (req: AuthRequest, 
     const db = getDatabase()
     
     // Verificar se usuário já existe
-    const existingUser = await db.get(
+    const [existingRows] = await db.execute(
       'SELECT id FROM users WHERE username = ?',
       [username]
     )
 
-    if (existingUser) {
+    const existingUsers = existingRows as any[]
+    if (existingUsers.length > 0) {
       return res.status(409).json({ error: 'Usuário já existe' })
     }
 
     // Preparar permissões
-    const userPermissions = permissions ? JSON.stringify(permissions) : JSON.stringify({
+    const userPermissions = permissions || {
       pdv: false,
       products: false,
       dashboard: false,
       reports: false
-    })
+    }
 
     // Criar usuário
     const hashedPassword = await bcrypt.hash(password, 10)
-    const result = await db.run(
+    const [result] = await db.execute(
       'INSERT INTO users (username, password, role, permissions) VALUES (?, ?, ?, ?)',
-      [username, hashedPassword, role, userPermissions]
+      [username, hashedPassword, role, JSON.stringify(userPermissions)]
     )
 
-    const userId = result.lastID
+    const insertResult = result as any
+    const userId = insertResult.insertId
 
     res.status(201).json({
       message: 'Usuário criado com sucesso',
@@ -121,12 +126,7 @@ router.post('/users', authenticateToken, requireAdmin, async (req: AuthRequest, 
         id: userId,
         username,
         role,
-        permissions: permissions || {
-          pdv: false,
-          products: false,
-          dashboard: false,
-          reports: false
-        }
+        permissions: userPermissions
       }
     })
   } catch (error) {
@@ -139,14 +139,15 @@ router.post('/users', authenticateToken, requireAdmin, async (req: AuthRequest, 
 router.get('/users', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const db = getDatabase()
-    const users = await db.all(
+    const [userRows] = await db.execute(
       'SELECT id, username, role, permissions, created_at FROM users ORDER BY created_at DESC'
     )
 
+    const users = userRows as any[]
     const formattedUsers = users.map((user: any) => {
       let permissions = {}
       try {
-        permissions = user.permissions ? JSON.parse(user.permissions) : {
+        permissions = user.permissions || {
           pdv: false,
           products: false,
           dashboard: false,
@@ -186,12 +187,13 @@ router.put('/users/:id', authenticateToken, requireAdmin, async (req: AuthReques
     const db = getDatabase()
     
     // Verificar se usuário existe
-    const existingUser = await db.get(
+    const [existingRows] = await db.execute(
       'SELECT id FROM users WHERE id = ?',
       [id]
     )
 
-    if (!existingUser) {
+    const existingUsers = existingRows as any[]
+    if (existingUsers.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado' })
     }
 
@@ -226,44 +228,12 @@ router.put('/users/:id', authenticateToken, requireAdmin, async (req: AuthReques
 
     values.push(id)
 
-    // Atualizar usuário
-    await db.run(
+    await db.execute(
       `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
       values
     )
 
-    // Buscar usuário atualizado
-    const updatedUser = await db.get(
-      'SELECT id, username, role, permissions FROM users WHERE id = ?',
-      [id]
-    )
-
-    let userPermissions = {}
-    try {
-      userPermissions = updatedUser.permissions ? JSON.parse(updatedUser.permissions) : {
-        pdv: false,
-        products: false,
-        dashboard: false,
-        reports: false
-      }
-    } catch (e) {
-      userPermissions = {
-        pdv: false,
-        products: false,
-        dashboard: false,
-        reports: false
-      }
-    }
-
-    res.json({
-      message: 'Usuário atualizado com sucesso',
-      user: {
-        id: updatedUser.id,
-        username: updatedUser.username,
-        role: updatedUser.role,
-        permissions: userPermissions
-      }
-    })
+    res.json({ message: 'Usuário atualizado com sucesso' })
   } catch (error) {
     console.error('Erro ao atualizar usuário:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
@@ -275,24 +245,25 @@ router.delete('/users/:id', authenticateToken, requireAdmin, async (req: AuthReq
   try {
     const { id } = req.params
 
-    if (parseInt(id) === req.user!.id) {
+    // Impedir que o admin delete a si mesmo
+    if (req.user?.id === parseInt(id)) {
       return res.status(400).json({ error: 'Não é possível deletar seu próprio usuário' })
     }
 
     const db = getDatabase()
     
     // Verificar se usuário existe
-    const existingUser = await db.get(
+    const [existingRows] = await db.execute(
       'SELECT id FROM users WHERE id = ?',
       [id]
     )
 
-    if (!existingUser) {
+    const existingUsers = existingRows as any[]
+    if (existingUsers.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado' })
     }
 
-    // Deletar usuário
-    await db.run('DELETE FROM users WHERE id = ?', [id])
+    await db.execute('DELETE FROM users WHERE id = ?', [id])
 
     res.json({ message: 'Usuário deletado com sucesso' })
   } catch (error) {

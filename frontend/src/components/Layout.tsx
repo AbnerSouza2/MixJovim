@@ -9,7 +9,10 @@ import {
   Menu,
   X,
   Users,
-  DollarSign
+  DollarSign,
+  FileText,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react'
 
 interface LayoutProps {
@@ -18,6 +21,7 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [reportsOpen, setReportsOpen] = useState(false)
   const { logout, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -72,12 +76,32 @@ export default function Layout({ children }: LayoutProps) {
     })
   }
 
+  const getReportItems = () => {
+    const reportItems = [
+      {
+        name: 'Relatório de Vendas',
+        path: '/relatorios/vendas',
+        permission: 'reports'
+      },
+      {
+        name: 'Relatório de Produtos',
+        path: '/relatorios/produtos',
+        permission: 'reports'
+      }
+    ]
+
+    return reportItems.filter(item => hasPermission(item.permission))
+  }
+
   const menuItems = getAllMenuItems()
+  const reportItems = getReportItems()
 
   const handleLogout = () => {
     logout()
     navigate('/login')
   }
+
+  const isReportPath = location.pathname.startsWith('/relatorios')
 
   return (
     <div className="flex h-screen bg-gray-950">
@@ -116,6 +140,45 @@ export default function Layout({ children }: LayoutProps) {
               </button>
             )
           })}
+
+          {/* Dropdown de Relatórios */}
+          {reportItems.length > 0 && (
+            <div className="space-y-1">
+              <button
+                onClick={() => setReportsOpen(!reportsOpen)}
+                className={`sidebar-item w-full ${isReportPath ? 'active' : ''}`}
+              >
+                <FileText className="w-5 h-5 mr-3" />
+                Relatórios
+                {reportsOpen ? (
+                  <ChevronDown className="w-4 h-4 ml-auto" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 ml-auto" />
+                )}
+              </button>
+              
+              {reportsOpen && (
+                <div className="ml-8 space-y-1">
+                  {reportItems.map((item) => {
+                    const isActive = location.pathname === item.path
+                    
+                    return (
+                      <button
+                        key={item.path}
+                        onClick={() => {
+                          navigate(item.path)
+                          setSidebarOpen(false)
+                        }}
+                        className={`sidebar-item w-full text-sm ${isActive ? 'active' : ''}`}
+                      >
+                        {item.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </nav>
 
         <div className="p-4 border-t border-gray-800">
@@ -170,7 +233,7 @@ export default function Layout({ children }: LayoutProps) {
             <Menu className="w-6 h-6" />
           </button>
           <h2 className="text-lg font-semibold text-white">
-            {menuItems.find(item => item.path === location.pathname)?.name || 'Sistema de Gestão'}
+            {isReportPath ? 'Relatórios' : menuItems.find(item => item.path === location.pathname)?.name || 'Sistema de Gestão'}
           </h2>
         </header>
 

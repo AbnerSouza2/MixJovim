@@ -213,9 +213,9 @@ export default function Dashboard() {
           <ResponsiveContainer width="100%" height={300}>
             <RechartsPie
               data={[
-                { name: 'Estoque Baixo', value: stats?.status_estoque.baixo || 0 },
-                { name: 'Estoque Normal', value: stats?.status_estoque.normal || 0 },
-                { name: 'Estoque Alto', value: stats?.status_estoque.alto || 0 }
+                { name: 'Estoque Baixo', value: stats?.status_estoque?.baixo || 0 },
+                { name: 'Estoque Normal', value: stats?.status_estoque?.normal || 0 },
+                { name: 'Estoque Alto', value: stats?.status_estoque?.alto || 0 }
               ]}
               cx="50%"
               cy="50%"

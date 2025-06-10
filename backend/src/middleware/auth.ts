@@ -31,10 +31,13 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
     
     // Buscar usuário no banco de dados
     const db = getDatabase()
-    const user = await db.get(
+    const [userRows] = await db.execute(
       'SELECT id, username, role, permissions FROM users WHERE id = ?',
       [decoded.userId]
     )
+    
+    const users = userRows as any[]
+    const user = users[0]
     
     if (!user) {
       return res.status(401).json({ error: 'Usuário não encontrado' })
@@ -43,7 +46,7 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
     // Parse permissions
     let permissions = {}
     try {
-      permissions = user.permissions ? JSON.parse(user.permissions) : {
+      permissions = user.permissions || {
         pdv: false,
         products: false,
         dashboard: false,
@@ -71,13 +74,28 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
   }
 }
 
+export function generateToken(userId: number): string {
+  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '24h' })
+}
+
 export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction) {
-  if (!req.user || req.user.role !== 'admin') {
+  if (req.user?.role !== 'admin') {
     return res.status(403).json({ error: 'Acesso negado. Apenas administradores.' })
   }
   next()
 }
 
-export function generateToken(userId: number): string {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '24h' })
+export function checkPermission(permission: keyof AuthRequest['user']['permissions']) {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (req.user?.role === 'admin') {
+      // Admin tem todas as permissões
+      return next()
+    }
+
+    if (!req.user?.permissions?.[permission]) {
+      return res.status(403).json({ error: `Acesso negado. Permissão '${permission}' necessária.` })
+    }
+
+    next()
+  }
 } 

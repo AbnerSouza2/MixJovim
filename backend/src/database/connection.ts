@@ -1,22 +1,38 @@
-import sqlite3 from 'sqlite3'
-import { open, Database } from 'sqlite'
-import path from 'path'
+import mysql from 'mysql2/promise'
 import bcrypt from 'bcryptjs'
 
-let db: Database | null = null
+let connection: mysql.Connection | null = null
 
-export async function initializeDatabase(): Promise<Database> {
-  if (db) return db
+const dbConfig = {
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '3306'),
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'mixjovim',
+  charset: 'utf8mb4'
+}
+
+export async function initializeDatabase(): Promise<mysql.Connection> {
+  if (connection) return connection
 
   try {
-    const dbPath = path.join(__dirname, '../../../database.sqlite')
-    
-    db = await open({
-      filename: dbPath,
-      driver: sqlite3.Database
+    // Primeiro conectar sem especificar o database para criá-lo se não existir
+    const tempConnection = await mysql.createConnection({
+      host: dbConfig.host,
+      port: dbConfig.port,
+      user: dbConfig.user,
+      password: dbConfig.password,
+      charset: dbConfig.charset
     })
 
-    console.log('SQLite connected successfully')
+    // Criar database se não existir
+    await tempConnection.execute(`CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`)
+    await tempConnection.end()
+
+    // Agora conectar ao database específico
+    connection = await mysql.createConnection(dbConfig)
+
+    console.log('MySQL connected successfully')
 
     // Criar tabelas
     await createTables()
@@ -26,94 +42,78 @@ export async function initializeDatabase(): Promise<Database> {
     await insertInitialData()
     console.log('Database initialized successfully')
 
-    return db
+    return connection
   } catch (error) {
-    console.error('Erro ao conectar com SQLite:', error)
+    console.error('Erro ao conectar com MySQL:', error)
     throw error
   }
 }
 
 async function createTables() {
-  if (!db) throw new Error('Database not initialized')
+  if (!connection) throw new Error('Database not initialized')
 
   // Tabela de usuários
-  await db.exec(`
+  await connection.execute(`
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      role TEXT CHECK(role IN ('admin', 'funcionario')) DEFAULT 'funcionario',
-      permissions TEXT DEFAULT '{}',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      username VARCHAR(255) UNIQUE NOT NULL,
+      password VARCHAR(255) NOT NULL,
+      role ENUM('admin', 'funcionario') DEFAULT 'funcionario',
+      permissions JSON,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `)
 
   // Tabela de produtos
-  await db.exec(`
+  await connection.execute(`
     CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      descricao TEXT NOT NULL,
-      quantidade INTEGER DEFAULT 0,
-      valor_unitario REAL DEFAULT 0,
-      valor_venda REAL DEFAULT 0,
-      categoria TEXT NOT NULL,
-      codigo_barras_1 TEXT,
-      codigo_barras_2 TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      descricao VARCHAR(500) NOT NULL,
+      quantidade INT DEFAULT 0,
+      valor_unitario DECIMAL(10,2) DEFAULT 0,
+      valor_venda DECIMAL(10,2) DEFAULT 0,
+      categoria VARCHAR(255) NOT NULL,
+      codigo_barras_1 VARCHAR(255),
+      codigo_barras_2 VARCHAR(255),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `)
 
   // Tabela de vendas
-  await db.exec(`
+  await connection.execute(`
     CREATE TABLE IF NOT EXISTS sales (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      total REAL NOT NULL,
-      discount REAL DEFAULT 0,
-      payment_method TEXT DEFAULT 'dinheiro',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      total DECIMAL(10,2) NOT NULL,
+      discount DECIMAL(10,2) DEFAULT 0,
+      payment_method VARCHAR(50) DEFAULT 'dinheiro',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `)
 
   // Tabela de itens das vendas
-  await db.exec(`
+  await connection.execute(`
     CREATE TABLE IF NOT EXISTS sale_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sale_id INTEGER NOT NULL,
-      produto_id INTEGER NOT NULL,
-      quantidade INTEGER NOT NULL,
-      valor_unitario REAL NOT NULL,
-      subtotal REAL NOT NULL,
-      FOREIGN KEY (sale_id) REFERENCES sales (id),
-      FOREIGN KEY (produto_id) REFERENCES products (id)
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      sale_id INT NOT NULL,
+      produto_id INT NOT NULL,
+      quantidade INT NOT NULL,
+      valor_unitario DECIMAL(10,2) NOT NULL,
+      subtotal DECIMAL(10,2) NOT NULL,
+      FOREIGN KEY (sale_id) REFERENCES sales (id) ON DELETE CASCADE,
+      FOREIGN KEY (produto_id) REFERENCES products (id) ON DELETE CASCADE
     )
   `)
-
-  // Verificar se precisa adicionar colunas discount e payment_method na tabela sales
-  try {
-    const tableInfo = await db.all("PRAGMA table_info(sales)")
-    const hasDiscount = tableInfo.some((col: any) => col.name === 'discount')
-    const hasPaymentMethod = tableInfo.some((col: any) => col.name === 'payment_method')
-    
-    if (!hasDiscount) {
-      await db.exec('ALTER TABLE sales ADD COLUMN discount REAL DEFAULT 0')
-    }
-    
-    if (!hasPaymentMethod) {
-      await db.exec('ALTER TABLE sales ADD COLUMN payment_method TEXT DEFAULT "dinheiro"')
-    }
-  } catch (error) {
-    console.log('Colunas já existem ou erro ao verificar:', error)
-  }
 }
 
 async function insertInitialData() {
-  if (!db) throw new Error('Database not initialized')
+  if (!connection) throw new Error('Database not initialized')
 
   // Verificar se já existem usuários
-  const userCount = await db.get('SELECT COUNT(*) as count FROM users')
+  const [userRows] = await connection.execute('SELECT COUNT(*) as count FROM users')
+  const userCount = (userRows as any[])[0].count
   
-  if (userCount.count === 0) {
+  if (userCount === 0) {
     // Criar usuário admin
     const adminPassword = await bcrypt.hash('admin', 10)
     const adminPermissions = JSON.stringify({
@@ -123,7 +123,7 @@ async function insertInitialData() {
       reports: true
     })
 
-    await db.run(
+    await connection.execute(
       'INSERT INTO users (username, password, role, permissions) VALUES (?, ?, ?, ?)',
       ['admin', adminPassword, 'admin', adminPermissions]
     )
@@ -137,7 +137,7 @@ async function insertInitialData() {
       reports: false
     })
 
-    await db.run(
+    await connection.execute(
       'INSERT INTO users (username, password, role, permissions) VALUES (?, ?, ?, ?)',
       ['funcionario', funcionarioPassword, 'funcionario', funcionarioPermissions]
     )
@@ -148,9 +148,10 @@ async function insertInitialData() {
   }
 
   // Verificar se já existem produtos
-  const productCount = await db.get('SELECT COUNT(*) as count FROM products')
+  const [productRows] = await connection.execute('SELECT COUNT(*) as count FROM products')
+  const productCount = (productRows as any[])[0].count
   
-  if (productCount.count === 0) {
+  if (productCount === 0) {
     // Produtos temáticos do MixJovim
     const produtos = [
       {
@@ -246,7 +247,7 @@ async function insertInitialData() {
     ]
 
     for (const produto of produtos) {
-      await db.run(
+      await connection.execute(
         `INSERT INTO products (descricao, quantidade, valor_unitario, valor_venda, categoria, codigo_barras_1, codigo_barras_2)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
@@ -265,15 +266,16 @@ async function insertInitialData() {
   }
 }
 
-export function getDatabase(): Database {
-  if (!db) {
+export function getDatabase(): mysql.Connection {
+  if (!connection) {
     throw new Error('Database not initialized. Call initializeDatabase() first.')
   }
-  return db
+  return connection
 }
 
 export async function closeDatabase() {
-  if (db) {
-    await db.close()
+  if (connection) {
+    await connection.end()
+    connection = null
   }
 } 

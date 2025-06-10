@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import toast from 'react-hot-toast'
-import { ShoppingCart, X, Search, Package, ArrowLeft, CreditCard, Calendar } from 'lucide-react'
+import { ShoppingCart, X, Search, Package, ArrowLeft, CreditCard, Calendar, Plus, Minus, Percent, DollarSign } from 'lucide-react'
 
 interface Product {
   id: number
@@ -28,23 +28,32 @@ export default function PDV() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [searchCode, setSearchCode] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-  const [quantity, setQuantity] = useState(1)
-  const [unitPrice, setUnitPrice] = useState('')
-  const [discount, setDiscount] = useState('')
-  const [receivedValue, setReceivedValue] = useState('')
   const [loading, setLoading] = useState(false)
   const [showProductModal, setShowProductModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [productSearch, setProductSearch] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('dinheiro')
+  const [installments, setInstallments] = useState(1)
+  const [lastSale, setLastSale] = useState<any>(null)
+  
+  // Estados para desconto
+  const [discountType, setDiscountType] = useState<'percent' | 'value'>('percent')
+  const [discountValue, setDiscountValue] = useState('')
+  const [receivedValue, setReceivedValue] = useState('')
   
   const barcodeRef = useRef<HTMLInputElement>(null)
 
   // Calcular totais
   const subtotal = cart.reduce((sum, item) => sum + item.subtotal, 0)
-  const discountAmount = discount ? (subtotal * Number(discount)) / 100 : 0
-  const total = subtotal - discountAmount
-  const change = receivedValue ? Number(receivedValue) - total : 0
+  
+  // Calcular desconto baseado no tipo
+  const discountAmount = discountValue ? 
+    (discountType === 'percent' ? (subtotal * Number(discountValue)) / 100 : Number(discountValue))
+    : 0
+  
+  const total = Math.max(0, subtotal - discountAmount)
+  const change = receivedValue ? Math.max(0, Number(receivedValue) - total) : 0
 
   useEffect(() => {
     loadProducts()
@@ -54,52 +63,118 @@ export default function PDV() {
     }
   }, [])
 
-  useEffect(() => {
-    if (selectedProduct) {
-      setUnitPrice(selectedProduct.valor_venda.toString())
-    }
-  }, [selectedProduct])
-
   const loadProducts = async () => {
     try {
+      setLoading(true)
       const response = await api.get('/products/all')
-      const productsData = Array.isArray(response.data) ? response.data : []
-      setProducts(productsData)
-      setAllProducts(productsData)
-      console.log('Produtos carregados:', productsData.length)
+      // Garantir que os valores sejam números
+      const productsWithNumbers = response.data.map((product: any) => ({
+        ...product,
+        valor_unitario: Number(product.valor_unitario) || 0,
+        valor_venda: Number(product.valor_venda) || 0,
+        quantidade: Number(product.quantidade) || 0
+      }))
+      setAllProducts(productsWithNumbers)
     } catch (error) {
       console.error('Erro ao carregar produtos:', error)
       toast.error('Erro ao carregar produtos')
-      // Garantir que seja sempre um array mesmo em caso de erro
-      setProducts([])
-      setAllProducts([])
+    } finally {
+      setLoading(false)
     }
   }
 
   const searchByBarcode = (code: string) => {
-    if (!code.trim()) return
-    
-    // Buscar nos produtos carregados
+    if (!code.trim()) {
+      setSelectedProduct(null)
+      return
+    }
+
     const product = allProducts.find(p => 
-      p.codigo_barras_1?.toLowerCase().includes(code.toLowerCase()) || 
-      p.codigo_barras_2?.toLowerCase().includes(code.toLowerCase()) ||
+      p.codigo_barras_1?.toLowerCase() === code.toLowerCase() ||
+      p.codigo_barras_2?.toLowerCase() === code.toLowerCase() ||
       p.descricao.toLowerCase().includes(code.toLowerCase())
     )
-    
+
     if (product) {
-      selectProduct(product)
-      toast.success(`Produto encontrado: ${product.descricao}`)
+      addProductToCart(product)
+      toast.success(`Produto adicionado: ${product.descricao}`)
     } else {
-      toast.error('Produto não encontrado')
       setSelectedProduct(null)
+      toast.error('Produto não encontrado')
     }
   }
 
-  const selectProduct = (product: Product) => {
-    setSelectedProduct(product)
-    setQuantity(1)
-    setUnitPrice(product.valor_venda.toString())
-    setSearchCode(product.codigo_barras_1 || product.descricao)
+  const addProductToCart = (product: Product, quantity: number = 1) => {
+    // Garantir que os valores sejam números
+    const productWithNumbers = {
+      ...product,
+      valor_unitario: Number(product.valor_unitario) || 0,
+      valor_venda: Number(product.valor_venda) || 0,
+      quantidade: Number(product.quantidade) || 0
+    }
+
+    if (quantity <= 0) {
+      toast.error('Quantidade deve ser maior que zero')
+      return
+    }
+
+    if (quantity > productWithNumbers.quantidade) {
+      toast.error('Quantidade indisponível no estoque')
+      return
+    }
+
+    // Verificar se o produto já está no carrinho
+    const existingItemIndex = cart.findIndex(item => item.produto.id === productWithNumbers.id)
+    
+    if (existingItemIndex >= 0) {
+      // Se já existe, aumentar a quantidade
+      const newCart = [...cart]
+      const newQuantity = newCart[existingItemIndex].quantidade + quantity
+      
+      if (newQuantity > productWithNumbers.quantidade) {
+        toast.error('Quantidade total excede o estoque disponível')
+        return
+      }
+      
+      newCart[existingItemIndex].quantidade = newQuantity
+      newCart[existingItemIndex].subtotal = newQuantity * productWithNumbers.valor_venda
+      setCart(newCart)
+    } else {
+      // Se não existe, adicionar novo item
+      const cartItem: CartItem = {
+        produto: productWithNumbers,
+        quantidade: quantity,
+        subtotal: quantity * productWithNumbers.valor_venda
+      }
+      setCart([...cart, cartItem])
+    }
+    
+    // Limpar seleção e pesquisa
+    setSelectedProduct(null)
+    setSearchCode('')
+    
+    // Focar novamente no código de barras
+    if (barcodeRef.current) {
+      barcodeRef.current.focus()
+    }
+  }
+
+  const updateCartItemQuantity = (index: number, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      removeFromCart(index)
+      return
+    }
+
+    const item = cart[index]
+    if (newQuantity > item.produto.quantidade) {
+      toast.error('Quantidade excede o estoque disponível')
+      return
+    }
+
+    const newCart = [...cart]
+    newCart[index].quantidade = newQuantity
+    newCart[index].subtotal = newQuantity * item.produto.valor_venda
+    setCart(newCart)
   }
 
   const handleBarcodeSearch = (e: React.KeyboardEvent) => {
@@ -113,45 +188,6 @@ export default function PDV() {
     product.codigo_barras_1?.toLowerCase().includes(productSearch.toLowerCase()) ||
     product.codigo_barras_2?.toLowerCase().includes(productSearch.toLowerCase())
   ) : []
-
-  const addToCart = () => {
-    if (!selectedProduct) {
-      toast.error('Selecione um produto')
-      return
-    }
-
-    if (quantity <= 0) {
-      toast.error('Quantidade deve ser maior que zero')
-      return
-    }
-
-    if (quantity > selectedProduct.quantidade) {
-      toast.error('Quantidade indisponível no estoque')
-      return
-    }
-
-    const price = unitPrice ? Number(unitPrice) : selectedProduct.valor_venda
-    const cartItem: CartItem = {
-      produto: selectedProduct,
-      quantidade: quantity,
-      subtotal: quantity * price
-    }
-
-    setCart([...cart, cartItem])
-    
-    // Limpar seleção
-    setSelectedProduct(null)
-    setSearchCode('')
-    setQuantity(1)
-    setUnitPrice('')
-    
-    // Focar novamente no código de barras
-    if (barcodeRef.current) {
-      barcodeRef.current.focus()
-    }
-    
-    toast.success('Produto adicionado ao carrinho')
-  }
 
   const removeFromCart = (index: number) => {
     const newCart = cart.filter((_, i) => i !== index)
@@ -180,20 +216,36 @@ export default function PDV() {
         })),
         total,
         discount: discountAmount,
-        payment_method: paymentMethod
+        payment_method: paymentMethod === 'cartao_credito' && installments > 1 
+          ? `${paymentMethod}_${installments}x` 
+          : paymentMethod
       }
 
       console.log('Enviando dados da venda:', saleData)
-      await api.post('/sales', saleData)
+      const response = await api.post('/sales', saleData)
+      
+      // Preparar dados da venda para impressão
+      const saleForReceipt = {
+        id: response.data.saleId,
+        items: cart,
+        subtotal,
+        discount: discountAmount,
+        total,
+        payment_method: paymentMethod,
+        installments: paymentMethod === 'cartao_credito' ? installments : 1,
+        created_at: new Date().toISOString()
+      }
+      
+      setLastSale(saleForReceipt)
       
       // Limpar carrinho
       setCart([])
-      setDiscount('')
+      setDiscountValue('')
       setReceivedValue('')
       setSelectedProduct(null)
       setSearchCode('')
-      setQuantity(1)
-      setUnitPrice('')
+      setPaymentMethod('dinheiro')
+      setInstallments(1)
       setShowPaymentModal(false)
       
       // Recarregar produtos para atualizar estoque
@@ -201,15 +253,110 @@ export default function PDV() {
       
       toast.success(`Venda finalizada! Total: R$ ${total.toFixed(2)}`)
       
-      // Focar no código de barras
-      if (barcodeRef.current) {
-        barcodeRef.current.focus()
-      }
+      // Mostrar modal de impressão
+      setShowReceiptModal(true)
+      
     } catch (error: any) {
       console.error('Erro ao finalizar venda:', error)
       toast.error(error.response?.data?.message || 'Erro ao finalizar venda')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const printReceipt = () => {
+    if (!lastSale) return
+
+    const receiptContent = `
+      <div style="font-family: 'Courier New', monospace; font-size: 12px; width: 300px; margin: 0 auto;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="margin: 0;">MIXJOVIM</h2>
+          <div style="margin: 5px 0; font-size: 10px;">
+            <div>Data: ${new Date(lastSale.created_at).toLocaleDateString('pt-BR')}</div>
+            <div>Hora: ${new Date(lastSale.created_at).toLocaleTimeString('pt-BR')}</div>
+            <div>Tel: (41) 99484-3913</div>
+            <div>Cliente: Cliente Geral</div>
+          </div>
+        </div>
+        
+        <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 10px 0; margin: 10px 0;">
+          <div style="text-align: center; font-weight: bold;">ITENS DO PEDIDO</div>
+        </div>
+        
+        ${lastSale.items.map((item: CartItem) => `
+          <div style="margin-bottom: 10px;">
+            <div style="font-weight: bold; font-size: 11px;">${item.produto.descricao.toUpperCase()}</div>
+            <div style="display: flex; justify-content: space-between;">
+              <span>Quant: ${item.quantidade}</span>
+              <span>Total: R$ ${item.subtotal.toFixed(2)}</span>
+            </div>
+          </div>
+        `).join('')}
+        
+        <div style="border-top: 1px dashed #000; padding: 10px 0; margin: 10px 0;">
+          <div style="display: flex; justify-content: space-between;">
+            <span>Subtotal:</span>
+            <span>R$ ${lastSale.subtotal.toFixed(2)}</span>
+          </div>
+          ${lastSale.discount > 0 ? `
+            <div style="display: flex; justify-content: space-between;">
+              <span>Desconto:</span>
+              <span>- R$ ${lastSale.discount.toFixed(2)}</span>
+            </div>
+          ` : ''}
+          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; border-top: 1px solid #000; padding-top: 5px; margin-top: 5px;">
+            <span>Total:</span>
+            <span>R$ ${lastSale.total.toFixed(2)}</span>
+          </div>
+        </div>
+        
+        <div style="text-align: center; background: #000; color: #fff; padding: 10px; margin: 10px 0;">
+          <div style="font-weight: bold;">${lastSale.payment_method === 'dinheiro' ? 'DINHEIRO' : 
+            lastSale.payment_method === 'cartao_credito' ? `CARTÃO CRÉDITO ${lastSale.installments}X` :
+            lastSale.payment_method === 'cartao_debito' ? 'CARTÃO DÉBITO' :
+            lastSale.payment_method === 'pix' ? 'PIX' : 'OUTROS'}</div>
+          ${lastSale.payment_method === 'cartao_credito' && lastSale.installments > 1 ? 
+            `<div>VALOR PARCELA: R$ ${(lastSale.total / lastSale.installments).toFixed(2)}</div>` : ''
+          }
+        </div>
+      </div>
+    `
+
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Cupom Fiscal - Venda #${lastSale.id}</title>
+            <style>
+              body { margin: 0; padding: 20px; }
+              @media print {
+                body { margin: 0; padding: 0; }
+              }
+            </style>
+          </head>
+          <body>
+            ${receiptContent}
+            <script>
+              window.onload = function() {
+                window.print();
+                window.close();
+              }
+            </script>
+          </body>
+        </html>
+      `)
+      printWindow.document.close()
+    }
+  }
+
+  const closeReceiptModal = () => {
+    setShowReceiptModal(false)
+    setLastSale(null)
+    
+    // Focar no código de barras
+    if (barcodeRef.current) {
+      barcodeRef.current.focus()
     }
   }
 
@@ -239,56 +386,54 @@ export default function PDV() {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      {/* Header com botão de voltar */}
-      <div className="bg-gray-900 border-b border-gray-800 p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="flex items-center space-x-2 text-white hover:text-mixjovim-gold transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span>Voltar ao Dashboard</span>
-            </button>
-            <div className="h-6 w-px bg-gray-600"></div>
-            <h1 className="text-xl font-bold text-white flex items-center">
-              <ShoppingCart className="w-6 h-6 mr-2 text-mixjovim-gold" />
-              PDV - Ponto de Venda
-            </h1>
-          </div>
-          <div className="text-sm text-gray-400">
-            Pressione ESC para voltar ao dashboard
-          </div>
-        </div>
-      </div>
-
       {/* Conteúdo principal */}
-      <div className="p-4">
-        <div className="grid grid-cols-12 gap-4 h-full">
+      <div className="h-screen">
+        <div className="grid grid-cols-12 gap-4 h-full p-4">
           
           {/* CARRINHO - Esquerda */}
           <div className="col-span-4">
-            <div className="bg-gray-900 rounded-lg h-full flex flex-col min-h-[600px] max-h-[600px]">
+            <div className="bg-gray-900 rounded-lg h-full flex flex-col">
               {/* Lista de produtos */}
               <div className="p-4 flex-1 overflow-y-auto">
                 <h2 className="text-white font-bold mb-4 text-center">CARRINHO</h2>
                 <div className="space-y-2">
                   {cart.map((item, index) => (
-                    <div key={index} className="flex justify-between items-center p-3 bg-gray-800 rounded mb-2 text-white">
-                      <div className="flex-1">
-                        <div className="font-medium">{item.produto.descricao}</div>
-                        <div className="text-gray-400 text-sm">
-                          {item.quantidade}x R$ {(item.subtotal / item.quantidade).toFixed(2)}
+                    <div key={index} className="p-3 bg-gray-800 rounded mb-2 text-white">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex-1">
+                          <div className="font-medium text-sm">{item.produto.descricao}</div>
+                          <div className="text-gray-400 text-xs">
+                            R$ {Number(item.produto.valor_venda || 0).toFixed(2)} cada
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold">R$ {item.subtotal.toFixed(2)}</div>
                         <button
                           onClick={() => removeFromCart(index)}
                           className="text-red-500 hover:text-red-400 ml-2"
                         >
                           <X className="w-4 h-4" />
                         </button>
+                      </div>
+                      
+                      {/* Controles de quantidade */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => updateCartItemQuantity(index, item.quantidade - 1)}
+                            className="w-6 h-6 bg-gray-700 hover:bg-gray-600 rounded flex items-center justify-center"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="w-8 text-center font-bold">{item.quantidade}</span>
+                          <button
+                            onClick={() => updateCartItemQuantity(index, item.quantidade + 1)}
+                            className="w-6 h-6 bg-gray-700 hover:bg-gray-600 rounded flex items-center justify-center"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <div className="font-bold text-green-400">
+                          R$ {Number(item.subtotal || 0).toFixed(2)}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -298,7 +443,7 @@ export default function PDV() {
                   <div className="text-center py-8 text-gray-400">
                     <ShoppingCart className="w-12 h-12 mx-auto mb-2 opacity-50" />
                     <p>Carrinho vazio</p>
-                    <p className="text-sm">Adicione produtos para iniciar a venda</p>
+                    <p className="text-sm">Escaneie ou busque produtos</p>
                   </div>
                 )}
               </div>
@@ -306,7 +451,7 @@ export default function PDV() {
               {/* Total e botões - sempre fixo na parte inferior */}
               <div className="p-4 border-t border-gray-700 bg-gray-900 rounded-b-lg">
                 <div className="text-center text-3xl font-bold text-blue-400 mb-4">
-                  R$ {total.toFixed(2)}
+                  R$ {Number(total || 0).toFixed(2)}
                 </div>
                 <div className="space-y-2">
                   <button
@@ -327,7 +472,7 @@ export default function PDV() {
             </div>
           </div>
 
-          {/* PRODUTO - Centro */}
+          {/* BUSCA DE PRODUTOS - Centro */}
           <div className="col-span-5 space-y-4">
             {/* Código de barras */}
             <div>
@@ -342,66 +487,27 @@ export default function PDV() {
               />
             </div>
 
-            {/* Produto selecionado */}
-            {selectedProduct && (
-              <div className="bg-gray-900 rounded-lg p-4">
-                <h3 className="text-white font-bold mb-3">{selectedProduct.descricao}</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-gray-300 text-sm mb-1">Quantidade</label>
-                    <input
-                      type="number"
-                      value={quantity}
-                      onChange={(e) => setQuantity(Number(e.target.value))}
-                      min="1"
-                      max={selectedProduct.quantidade}
-                      className="w-full bg-gray-800 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-mixjovim-gold text-center"
-                    />
-                    <div className="text-xs text-gray-400 mt-1">
-                      Estoque: {selectedProduct.quantidade}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-gray-300 text-sm mb-1">Valor Unitário</label>
-                    <input
-                      type="number"
-                      value={unitPrice}
-                      onChange={(e) => setUnitPrice(e.target.value)}
-                      step="0.01"
-                      min="0"
-                      className="w-full bg-gray-800 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-mixjovim-gold text-center"
-                    />
-                  </div>
-                </div>
-                
-                <button
-                  onClick={addToCart}
-                  disabled={!selectedProduct || quantity <= 0}
-                  className="w-full btn-gold py-3 mt-4 font-bold disabled:opacity-50 disabled:cursor-not-allowed rounded-lg"
-                >
-                  <ShoppingCart className="w-5 h-5 inline mr-2" />
-                  ADICIONAR AO CARRINHO
-                </button>
-              </div>
-            )}
-
-            {!selectedProduct && (
-              <div className="bg-gray-900 rounded-lg p-8 text-center">
-                <Package className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400">Digite um código de barras ou use F3 para buscar produtos</p>
-              </div>
-            )}
+            <div className="bg-gray-900 rounded-lg p-8 text-center">
+              <Package className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-400 text-lg mb-2">Escaneie o código de barras</p>
+              <p className="text-gray-500 text-sm">O produto será adicionado automaticamente ao carrinho</p>
+              <p className="text-gray-500 text-sm mt-2">Ou use F3 para buscar produtos manualmente</p>
+            </div>
           </div>
 
-          {/* RESUMO - Direita */}
+          {/* RESUMO E DESCONTO - Direita */}
           <div className="col-span-3 space-y-4">
+            <div className="text-sm text-gray-400 text-center">
+              Pressione ESC para voltar ao dashboard
+            </div>
+            
             {/* Logo */}
             <div className="bg-red-600 rounded-lg overflow-hidden">
               <img 
                 src="/MixJovim.jpg" 
                 alt="MixJovim - Atacado e Varejo" 
                 className="w-full object-cover"
-                style={{ height: '13rem' }}
+                style={{ height: '10rem' }}
                 onError={(e) => {
                   // Se a imagem não carregar, mostra um placeholder
                   e.currentTarget.style.display = 'none'
@@ -411,7 +517,7 @@ export default function PDV() {
               />
               <div 
                 className="w-full bg-red-700 flex items-center justify-center hidden"
-                style={{ display: 'none', height: '13rem' }}
+                style={{ display: 'none', height: '10rem' }}
               >
                 <span className="text-white font-bold text-xl">MJ</span>
               </div>
@@ -419,17 +525,48 @@ export default function PDV() {
 
             {/* Desconto */}
             <div className="bg-gray-900 rounded-lg p-4">
-              <label className="block text-white font-bold mb-2">Desconto (%)</label>
+              <label className="block text-white font-bold mb-2">Desconto</label>
+              
+              {/* Tipo de desconto */}
+              <div className="flex space-x-2 mb-2">
+                <button
+                  onClick={() => setDiscountType('percent')}
+                  className={`flex-1 py-2 px-3 rounded text-sm font-medium transition-colors ${
+                    discountType === 'percent' 
+                      ? 'bg-mixjovim-gold text-gray-900' 
+                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  }`}
+                >
+                  %
+                </button>
+                <button
+                  onClick={() => setDiscountType('value')}
+                  className={`flex-1 py-2 px-3 rounded text-sm font-medium transition-colors ${
+                    discountType === 'value' 
+                      ? 'bg-mixjovim-gold text-gray-900' 
+                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  }`}
+                >
+                  R$
+                </button>
+              </div>
+              
               <input
                 type="number"
-                value={discount}
-                onChange={(e) => setDiscount(e.target.value)}
+                value={discountValue}
+                onChange={(e) => setDiscountValue(e.target.value)}
                 min="0"
-                max="100"
-                step="0.1"
-                placeholder="0"
+                max={discountType === 'percent' ? "100" : subtotal.toString()}
+                step={discountType === 'percent' ? "0.1" : "0.01"}
+                placeholder={discountType === 'percent' ? "0" : "0,00"}
                 className="w-full bg-gray-800 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-mixjovim-gold text-center text-lg"
               />
+              
+              {discountAmount > 0 && (
+                <div className="mt-2 text-center text-red-400 font-bold">
+                  - R$ {discountAmount.toFixed(2)}
+                </div>
+              )}
             </div>
 
             {/* Valor recebido */}
@@ -501,7 +638,12 @@ export default function PDV() {
                 </label>
                 <select
                   value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  onChange={(e) => {
+                    setPaymentMethod(e.target.value)
+                    if (e.target.value !== 'cartao_credito') {
+                      setInstallments(1)
+                    }
+                  }}
                   className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-mixjovim-gold"
                 >
                   <option value="dinheiro">Dinheiro</option>
@@ -511,6 +653,27 @@ export default function PDV() {
                   <option value="transferencia">Transferência Bancária</option>
                 </select>
               </div>
+
+              {/* Opção de Parcelas para Cartão de Crédito */}
+              {paymentMethod === 'cartao_credito' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Número de Parcelas
+                  </label>
+                  <select
+                    value={installments}
+                    onChange={(e) => setInstallments(Number(e.target.value))}
+                    className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-mixjovim-gold"
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(num => (
+                      <option key={num} value={num}>
+                        {num}x de R$ {(total / num).toFixed(2)}
+                        {num === 1 ? ' (à vista)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center">
@@ -584,9 +747,9 @@ export default function PDV() {
                     <div
                       key={product.id}
                       onClick={() => {
-                        selectProduct(product)
+                        addProductToCart(product)
                         setShowProductModal(false)
-                        toast.success(`Produto selecionado: ${product.descricao}`)
+                        toast.success(`Produto adicionado: ${product.descricao}`)
                       }}
                       className="p-3 bg-gray-800 rounded-lg border border-gray-700 hover:border-mixjovim-gold cursor-pointer transition-colors"
                     >
@@ -607,10 +770,10 @@ export default function PDV() {
                         </div>
                         <div className="text-right">
                           <p className="text-lg font-bold text-mixjovim-gold">
-                            R$ {product.valor_venda.toFixed(2)}
+                            R$ {Number(product.valor_venda || 0).toFixed(2)}
                           </p>
                           <p className="text-sm text-gray-400">
-                            Custo: R$ {product.valor_unitario.toFixed(2)}
+                            Custo: R$ {Number(product.valor_unitario || 0).toFixed(2)}
                           </p>
                         </div>
                       </div>
@@ -625,6 +788,51 @@ export default function PDV() {
                   <p>Nenhum produto encontrado</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Impressão */}
+      {showReceiptModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <h3 className="text-lg font-semibold text-white flex items-center">
+                <Package className="w-5 h-5 mr-2" />
+                Imprimir Cupom
+              </h3>
+              <button
+                onClick={closeReceiptModal}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Deseja imprimir o cupom fiscal?
+                </label>
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={printReceipt}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Imprimir
+                </button>
+                <button
+                  type="button"
+                  onClick={closeReceiptModal}
+                  className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
             </div>
           </div>
         </div>

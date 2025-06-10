@@ -100,13 +100,19 @@ export default function Financeiro() {
 
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleString('pt-BR', {
+    const localDate = new Date(date.getTime() + date.getTimezoneOffset() * 60000)
+    return localDate.toLocaleString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
     })
+  }
+
+  const formatDisplayDate = (dateString: string) => {
+    const [year, month, day] = dateString.split('-')
+    return `${day}/${month}/${year}`
   }
 
   return (
@@ -138,7 +144,7 @@ export default function Financeiro() {
             <div>
               <p className="text-sm font-medium text-gray-400">Receita Total</p>
               <p className="text-2xl font-bold text-green-400">
-                R$ {totalRevenue.toFixed(2)}
+                R$ {Number(totalRevenue || 0).toFixed(2)}
               </p>
             </div>
             <div className="p-3 bg-green-600 rounded-full">
@@ -152,7 +158,7 @@ export default function Financeiro() {
             <div>
               <p className="text-sm font-medium text-gray-400">Ticket Médio</p>
               <p className="text-2xl font-bold text-mixjovim-gold">
-                R$ {totalSales > 0 ? (totalRevenue / totalSales).toFixed(2) : '0.00'}
+                R$ {totalSales > 0 ? (Number(totalRevenue || 0) / totalSales).toFixed(2) : '0.00'}
               </p>
             </div>
             <div className="p-3 bg-orange-600 rounded-full">
@@ -197,7 +203,7 @@ export default function Financeiro() {
       <div className="bg-gray-900 rounded-lg border border-gray-800 overflow-hidden">
         <div className="p-6 border-b border-gray-800">
           <h2 className="text-lg font-semibold text-white">
-            Vendas do dia {new Date(selectedDate).toLocaleDateString('pt-BR')}
+            Vendas do dia {formatDisplayDate(selectedDate)}
           </h2>
         </div>
 
@@ -247,10 +253,10 @@ export default function Financeiro() {
                         {formatDateTime(sale.created_at)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-400">
-                        R$ {sale.total.toFixed(2)}
+                        R$ {Number(sale.total || 0).toFixed(2)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                        R$ {sale.discount.toFixed(2)}
+                        R$ {Number(sale.discount || 0).toFixed(2)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                         {formatPaymentMethod(sale.payment_method)}
@@ -334,15 +340,15 @@ export default function Financeiro() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Subtotal:</span>
-                      <span className="text-white">R$ {(selectedSale.total + selectedSale.discount).toFixed(2)}</span>
+                      <span className="text-white">R$ {(Number(selectedSale.total || 0) + Number(selectedSale.discount || 0)).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Desconto:</span>
-                      <span className="text-red-400">- R$ {selectedSale.discount.toFixed(2)}</span>
+                      <span className="text-red-400">- R$ {Number(selectedSale.discount || 0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between border-t border-gray-700 pt-3">
                       <span className="text-gray-400 font-semibold">Total:</span>
-                      <span className="text-green-400 font-bold text-lg">R$ {selectedSale.total.toFixed(2)}</span>
+                      <span className="text-green-400 font-bold text-lg">R$ {Number(selectedSale.total || 0).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
@@ -401,10 +407,10 @@ export default function Financeiro() {
                             {item.quantidade}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-300">
-                            R$ {item.valor_unitario.toFixed(2)}
+                            R$ {Number(item.valor_unitario || 0).toFixed(2)}
                           </td>
                           <td className="px-4 py-3 text-sm font-semibold text-green-400">
-                            R$ {item.subtotal.toFixed(2)}
+                            R$ {Number(item.subtotal || 0).toFixed(2)}
                           </td>
                         </tr>
                       ))}

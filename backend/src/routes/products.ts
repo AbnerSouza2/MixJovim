@@ -16,11 +16,11 @@ const upload = multer({
 router.get('/all', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const db = getDatabase()
-    const products = await db.all(
+    const [productRows] = await db.execute(
       'SELECT * FROM products ORDER BY descricao ASC'
     )
     
-    res.json(products)
+    res.json(productRows)
   } catch (error) {
     console.error('Erro ao listar todos os produtos:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
@@ -47,14 +47,15 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
     }
 
     // Contar total de produtos
-    const countResult = await db.get(
+    const [countRows] = await db.execute(
       `SELECT COUNT(*) as total FROM products ${whereClause}`,
       params
     )
-    const total = countResult.total
+    const countResult = countRows as any[]
+    const total = countResult[0].total
 
     // Buscar produtos
-    const products = await db.all(
+    const [productRows] = await db.execute(
       `SELECT * FROM products ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     )
@@ -62,7 +63,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
     const totalPages = Math.ceil(total / limit)
 
     res.json({
-      products,
+      products: productRows,
       pagination: {
         page,
         limit,
@@ -90,7 +91,7 @@ router.get('/search', authenticateToken, async (req: AuthRequest, res) => {
     const db = getDatabase()
     const searchTerm = `%${query}%`
     
-    const products = await db.all(
+    const [productRows] = await db.execute(
       `SELECT * FROM products 
        WHERE descricao LIKE ? 
        OR codigo_barras_1 = ? 
@@ -100,7 +101,7 @@ router.get('/search', authenticateToken, async (req: AuthRequest, res) => {
       [searchTerm, query, query]
     )
 
-    res.json(products)
+    res.json(productRows)
   } catch (error) {
     console.error('Erro na busca de produtos:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
@@ -125,16 +126,19 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
     }
 
     const db = getDatabase()
-    const result = await db.run(
+    const [result] = await db.execute(
       `INSERT INTO products (descricao, quantidade, valor_unitario, valor_venda, categoria, codigo_barras_1, codigo_barras_2)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [descricao, quantidade, valor_unitario, valor_venda, categoria, codigo_barras_1 || null, codigo_barras_2 || null]
     )
 
-    const productId = result.lastID
+    const insertResult = result as any
+    const productId = insertResult.insertId
 
     // Buscar produto criado
-    const newProduct = await db.get('SELECT * FROM products WHERE id = ?', [productId])
+    const [newProductRows] = await db.execute('SELECT * FROM products WHERE id = ?', [productId])
+    const newProducts = newProductRows as any[]
+    const newProduct = newProducts[0]
 
     res.status(201).json({
       message: 'Produto criado com sucesso',
@@ -163,12 +167,13 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
     const db = getDatabase()
     
     // Verificar se produto existe
-    const existingProduct = await db.get('SELECT id FROM products WHERE id = ?', [id])
-    if (!existingProduct) {
+    const [existingRows] = await db.execute('SELECT id FROM products WHERE id = ?', [id])
+    const existingProducts = existingRows as any[]
+    if (existingProducts.length === 0) {
       return res.status(404).json({ error: 'Produto não encontrado' })
     }
 
-    await db.run(
+    await db.execute(
       `UPDATE products SET 
        descricao = ?, quantidade = ?, valor_unitario = ?, valor_venda = ?, 
        categoria = ?, codigo_barras_1 = ?, codigo_barras_2 = ?
@@ -177,7 +182,9 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
     )
 
     // Buscar produto atualizado
-    const updatedProduct = await db.get('SELECT * FROM products WHERE id = ?', [id])
+    const [updatedRows] = await db.execute('SELECT * FROM products WHERE id = ?', [id])
+    const updatedProducts = updatedRows as any[]
+    const updatedProduct = updatedProducts[0]
 
     res.json({
       message: 'Produto atualizado com sucesso',
@@ -197,12 +204,13 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
     const db = getDatabase()
     
     // Verificar se produto existe
-    const existingProduct = await db.get('SELECT id FROM products WHERE id = ?', [id])
-    if (!existingProduct) {
+    const [existingRows] = await db.execute('SELECT id FROM products WHERE id = ?', [id])
+    const existingProducts = existingRows as any[]
+    if (existingProducts.length === 0) {
       return res.status(404).json({ error: 'Produto não encontrado' })
     }
 
-    await db.run('DELETE FROM products WHERE id = ?', [id])
+    await db.execute('DELETE FROM products WHERE id = ?', [id])
 
     res.json({ message: 'Produto deletado com sucesso' })
   } catch (error) {
@@ -223,82 +231,170 @@ router.post('/import', authenticateToken, upload.single('file'), async (req: Aut
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer' })
     const sheetName = workbook.SheetNames[0]
     const worksheet = workbook.Sheets[sheetName]
-    const data = XLSX.utils.sheet_to_json(worksheet)
-
-    console.log('📊 Dados extraídos do Excel:', data.length, 'linhas')
     
-    if (data.length === 0) {
+    // Converter para array de arrays para acessar por posição de coluna
+    const dataArray = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+    console.log('📊 Dados extraídos do Excel:', dataArray.length, 'linhas')
+    
+    if (dataArray.length === 0) {
       return res.status(400).json({ error: 'Arquivo vazio ou formato inválido' })
     }
 
-    // Log para ver as chaves do primeiro item
-    if (data.length > 0) {
-      console.log('🔑 Colunas encontradas:', Object.keys(data[0]))
+    // Log da primeira linha para debug
+    if (dataArray.length > 0) {
+      console.log('🔍 Primeira linha:', dataArray[0])
     }
 
     const db = getDatabase()
     let success = 0
     let errors = 0
+    let created = 0
+    let updated = 0
     const errorMessages: string[] = []
 
-    for (const row of data as any[]) {
+    // Começar da linha 1 se houver cabeçalho, ou linha 0 se não houver
+    const startRow = 1 // Assumindo que há cabeçalho na linha 0
+    
+    for (let i = startRow; i < dataArray.length; i++) {
       try {
-        // Normalizar nomes das colunas - aceitar tanto português quanto inglês
+        const row = dataArray[i] as any[]
+        
+        // Mapeamento específico baseado nas posições das colunas
         const normalizedRow = {
-          descricao: row.descricao || row['Descrição'] || row.description || '',
-          quantidade: Number(row.quantidade || row['Quantidade'] || row.quantity || 0),
-          valor_unitario: Number(row.valor_unitario || row['Valor Unitário'] || row['valor_unitario'] || row.unit_price || 0),
-          valor_venda: Number(row.valor_venda || row['Valor Venda'] || row['valor_venda'] || row.sale_price || 0),
-          categoria: row.categoria || row['Categoria'] || row.category || 'Geral',
-          codigo_barras_1: row.codigo_barras_1 || row['Código Barras 1'] || row['codigo_barras_1'] || row.barcode_1 || null,
-          codigo_barras_2: row.codigo_barras_2 || row['Código Barras 2'] || row['codigo_barras_2'] || row.barcode_2 || null
+          // Coluna G (índice 6) - Descrição
+          descricao: row[6]?.toString()?.trim() || '',
+          
+          // Coluna E (índice 4) - Quantidade
+          quantidade: Number(row[4]) || 1,
+          
+          // Coluna J (índice 9) - Valor Unitário - SEMPRE 0 na importação
+          valor_unitario: 0,
+          
+          // Coluna K (índice 10) - Valor Total - SEMPRE 0 na importação
+          valor_venda: 0,
+          
+          // Categoria - SEMPRE vazio para forçar seleção das 3 categorias específicas
+          categoria: 'Selecione a categoria',
+          
+          // Coluna C (índice 2) - Código ML
+          codigo_barras_1: row[2]?.toString()?.trim() || null,
+          
+          // Coluna D (índice 3) - Código RZ
+          codigo_barras_2: row[3]?.toString()?.trim() || null
         }
 
-        console.log(`📝 Processando linha ${data.indexOf(row) + 1}:`, normalizedRow)
+        console.log(`📝 Processando linha ${i + 1}:`, normalizedRow)
 
-        // Validar campos obrigatórios
-        if (!normalizedRow.descricao || !normalizedRow.categoria) {
-          const errorMsg = `Linha ${data.indexOf(row) + 1}: Descrição e categoria são obrigatórias`
+        // Validar campos obrigatórios (só descrição é essencial)
+        if (!normalizedRow.descricao || normalizedRow.descricao.length < 3) {
+          const errorMsg = `Linha ${i + 1}: Descrição inválida ou muito curta (${normalizedRow.descricao})`
           console.log('❌', errorMsg)
           errorMessages.push(errorMsg)
           errors++
           continue
         }
 
-        const result = await db.run(
-          `INSERT INTO products (descricao, quantidade, valor_unitario, valor_venda, categoria, codigo_barras_1, codigo_barras_2)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [
-            normalizedRow.descricao,
-            normalizedRow.quantidade,
-            normalizedRow.valor_unitario,
-            normalizedRow.valor_venda,
-            normalizedRow.categoria,
-            normalizedRow.codigo_barras_1,
-            normalizedRow.codigo_barras_2
-          ]
+        // Nota: Valores sempre 0 na importação - usuário preenche depois
+
+        // Verificar se os códigos são válidos (não vazios, não #VALOR!, etc.)
+        if (normalizedRow.codigo_barras_1 && (normalizedRow.codigo_barras_1.includes('#') || normalizedRow.codigo_barras_1.length < 3)) {
+          normalizedRow.codigo_barras_1 = null
+        }
+        if (normalizedRow.codigo_barras_2 && (normalizedRow.codigo_barras_2.includes('#') || normalizedRow.codigo_barras_2.length < 3)) {
+          normalizedRow.codigo_barras_2 = null
+        }
+
+        // VERIFICAR SE JÁ EXISTE PRODUTO - PRIORIDADE PELO NOME
+        let existingProduct = null
+        
+        // 1º - VERIFICAR PELO NOME DO PRODUTO (prioridade)
+        const [nameRows] = await db.execute(
+          `SELECT * FROM products WHERE LOWER(TRIM(descricao)) = LOWER(TRIM(?))`,
+          [normalizedRow.descricao]
         )
         
-        console.log(`✅ Produto inserido com ID: ${result.lastID}`)
-        success++
+        const existingByName = nameRows as any[]
+        if (existingByName.length > 0) {
+          existingProduct = existingByName[0]
+          console.log(`🎯 Produto encontrado pelo NOME: ${existingProduct.descricao}`)
+        }
+        
+        // 2º - SE NÃO ENCONTROU PELO NOME, VERIFICAR PELOS CÓDIGOS DE BARRAS
+        if (!existingProduct && (normalizedRow.codigo_barras_1 || normalizedRow.codigo_barras_2)) {
+          const [codeRows] = await db.execute(
+            `SELECT * FROM products 
+             WHERE (codigo_barras_1 = ? AND codigo_barras_1 IS NOT NULL) 
+             OR (codigo_barras_2 = ? AND codigo_barras_2 IS NOT NULL)
+             OR (codigo_barras_1 = ? AND codigo_barras_1 IS NOT NULL)
+             OR (codigo_barras_2 = ? AND codigo_barras_2 IS NOT NULL)`,
+            [
+              normalizedRow.codigo_barras_1, 
+              normalizedRow.codigo_barras_1,
+              normalizedRow.codigo_barras_2, 
+              normalizedRow.codigo_barras_2
+            ]
+          )
+          
+          const existingByCode = codeRows as any[]
+          if (existingByCode.length > 0) {
+            existingProduct = existingByCode[0]
+            console.log(`🔢 Produto encontrado pelo CÓDIGO: ${existingProduct.descricao}`)
+          }
+        }
+
+        if (existingProduct) {
+          // PRODUTO JÁ EXISTE - SOMAR QUANTIDADE
+          const novaQuantidade = Number(existingProduct.quantidade) + Number(normalizedRow.quantidade)
+          
+          await db.execute(
+            `UPDATE products SET quantidade = ? WHERE id = ?`,
+            [novaQuantidade, existingProduct.id]
+          )
+          
+          console.log(`🔄 Produto atualizado - ID: ${existingProduct.id} | ${existingProduct.descricao} | Quantidade: ${existingProduct.quantidade} + ${normalizedRow.quantidade} = ${novaQuantidade}`)
+          success++
+          updated++
+        } else {
+          // PRODUTO NOVO - CRIAR
+          const [result] = await db.execute(
+            `INSERT INTO products (descricao, quantidade, valor_unitario, valor_venda, categoria, codigo_barras_1, codigo_barras_2)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+              normalizedRow.descricao,
+              normalizedRow.quantidade,
+              normalizedRow.valor_unitario,
+              normalizedRow.valor_venda,
+              normalizedRow.categoria,
+              normalizedRow.codigo_barras_1,
+              normalizedRow.codigo_barras_2
+            ]
+          )
+          
+          const insertResult = result as any
+          console.log(`✅ Produto novo criado com ID: ${insertResult.insertId} | ${normalizedRow.descricao} | Quantidade: ${normalizedRow.quantidade}`)
+          success++
+          created++
+        }
       } catch (error) {
-        const errorMsg = `Linha ${data.indexOf(row) + 1}: ${error instanceof Error ? error.message : 'Erro ao importar'}`
-        console.error('❌ Erro na linha:', errorMsg, error)
+        const errorMsg = `Linha ${i + 1}: ${error}`
+        console.log('❌', errorMsg)
         errorMessages.push(errorMsg)
         errors++
       }
     }
 
-    console.log(`📈 Importação finalizada: ${success} sucessos, ${errors} erros`)
+    console.log(`📈 Resultado da importação: ${success} sucessos, ${errors} erros`)
 
     res.json({
-      message: `Importação concluída. Sucessos: ${success}, Erros: ${errors}`,
+      message: 'Importação concluída',
       success,
       errors,
-      errorMessages: errorMessages.slice(0, 10) // Limitar mensagens de erro
+      created,
+      updated,
+      details: errorMessages.length > 0 ? errorMessages.slice(0, 10) : [] // Limitar mensagens de erro
     })
   } catch (error) {
-    console.error('💥 Erro geral na importação:', error)
+    console.error('Erro na importação:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })
@@ -310,9 +406,9 @@ router.get('/template', authenticateToken, (req: AuthRequest, res) => {
       {
         descricao: 'Exemplo Produto',
         quantidade: 10,
-        valor_unitario: 5.00,
-        valor_venda: 8.50,
-        categoria: 'Categoria Exemplo',
+        valor_unitario: 0,
+        valor_venda: 0,
+        categoria: 'Informática',
         codigo_barras_1: '1234567890123',
         codigo_barras_2: '0987654321'
       }
