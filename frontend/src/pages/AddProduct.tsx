@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { 
   Plus, 
   Upload, 
@@ -7,15 +7,19 @@ import {
   Trash2, 
   Download,
   FileSpreadsheet,
-  Eye,
   AlertCircle,
   Check,
   X,
   Copy,
-  Printer
+  Printer,
+  ClipboardCheck,
+  AlertTriangle,
+  Scan,
+  User
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { productsApi, Product } from '../services/api'
+import { useAuth } from '../contexts/AuthContext'
 import toast from 'react-hot-toast'
 import * as XLSX from 'xlsx'
 
@@ -29,6 +33,12 @@ interface ProductForm {
   codigo_barras_2?: string
 }
 
+interface ScannedProduct {
+  product: Product
+  scannedQuantity: number
+  timestamp: Date
+}
+
 export default function AddProduct() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(false)
@@ -39,24 +49,51 @@ export default function AddProduct() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [existingProduct, setExistingProduct] = useState<Product | null>(null)
   const [isStockUpdate, setIsStockUpdate] = useState(false)
-  const [editingInline, setEditingInline] = useState<{[key: number]: {field: string, value: string}} | null>(null)
   const [showLabelModal, setShowLabelModal] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [labelQuantity, setLabelQuantity] = useState(1)
+  const [showConferenceModal, setShowConferenceModal] = useState(false)
+  const [showLossModal, setShowLossModal] = useState(false)
+  const [modalProduct, setModalProduct] = useState<Product | null>(null)
+  const [modalQuantity, setModalQuantity] = useState('')
+  const [modalObservations, setModalObservations] = useState('')
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  
+  // Estados para o scanner
+  const [showScannerModal, setShowScannerModal] = useState(false)
+  const [scannerInput, setScannerInput] = useState('')
+  const [scannerLoading, setScannerLoading] = useState(false)
+  const [lastProcessedCode, setLastProcessedCode] = useState('')
+  const [lastInputTime, setLastInputTime] = useState(0)
+  const [insertingMessage, setInsertingMessage] = useState('')
+  const [scannerBlocked, setScannerBlocked] = useState(false)
+  
+  // Estados para detalhes de conferência
+  const [showConferenceDetailsModal, setShowConferenceDetailsModal] = useState(false)
+  const [conferenceDetails, setConferenceDetails] = useState<any[]>([])
+  const [selectedProductForDetails, setSelectedProductForDetails] = useState<Product | null>(null)
+  
+  // Ref para o timeout do debounce e input
+  const scannerTimeoutRef = useRef<number | null>(null)
+  const scannerInputRef = useRef<HTMLInputElement>(null)
+  const insertingTimeoutRef = useRef<number | null>(null)
+  const blockTimeoutRef = useRef<number | null>(null)
 
+  const { user } = useAuth()
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<ProductForm>()
 
   const valorUnitario = watch('valor_unitario')
-  const quantidade = watch('quantidade')
   const categoria = watch('categoria')
   const codigoBarras1 = watch('codigo_barras_1')
   const codigoBarras2 = watch('codigo_barras_2')
 
   // Opções de categoria com suas margens
   const categoriaOptions = [
-    { value: 'Informática', label: 'Informática', desconto: 0.30 },
-    { value: 'Eletrodoméstico', label: 'Eletrodoméstico', desconto: 0.35 },
-    { value: 'Variados', label: 'Variados', desconto: 0.40 }
+    { value: 'Informática', label: 'Informática', desconto: 0.30, porcentagem: '30%' },
+    { value: 'Eletrodoméstico', label: 'Eletrodoméstico', desconto: 0.35, porcentagem: '35%' },
+    { value: 'Variados', label: 'Variados', desconto: 0.40, porcentagem: '40%' }
   ]
 
   // Calcular valor de venda automaticamente baseado na categoria
@@ -83,18 +120,53 @@ export default function AddProduct() {
     loadProducts()
   }, [currentPage, search])
 
+  // Limpar timeout quando o componente for desmontado
+  useEffect(() => {
+    return () => {
+      if (scannerTimeoutRef.current) {
+        clearTimeout(scannerTimeoutRef.current)
+      }
+      if (insertingTimeoutRef.current) {
+        clearTimeout(insertingTimeoutRef.current)
+      }
+      if (blockTimeoutRef.current) {
+        clearTimeout(blockTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  // Manter foco no input do scanner quando modal estiver aberto
+  useEffect(() => {
+    if (showScannerModal && scannerInputRef.current) {
+      const focusInput = () => {
+        scannerInputRef.current?.focus()
+      }
+      
+      // Foco inicial
+      setTimeout(focusInput, 100)
+      
+      // Manter foco após processamento
+      const interval = setInterval(focusInput, 500)
+      
+      return () => clearInterval(interval)
+    }
+  }, [showScannerModal, scannerLoading])
+
   // Verificar código de barras quando digitado
   useEffect(() => {
     const checkBarcodeExists = async () => {
+      // Não executar verificação se estamos editando um produto
+      if (editingProduct) return
+      
       if ((codigoBarras1 && codigoBarras1.length >= 8) || (codigoBarras2 && codigoBarras2.length >= 8)) {
         try {
-          const query = codigoBarras1 || codigoBarras2
+          const query = (codigoBarras1 || codigoBarras2) as string
           const response = await productsApi.search(query)
           const foundProduct = response.data.find((p: Product) => 
             p.codigo_barras_1 === query || p.codigo_barras_2 === query
           )
           
-          if (foundProduct && !editingProduct) {
+          if (foundProduct) {
             setExistingProduct(foundProduct)
             setIsStockUpdate(true)
             // Preencher campos com dados do produto existente
@@ -106,7 +178,7 @@ export default function AddProduct() {
             setValue('codigo_barras_2', foundProduct.codigo_barras_2 || '')
             // Não preencher quantidade para que o usuário digite a quantidade a adicionar
             toast.success(`Produto encontrado! Adicione a quantidade de entrada no estoque.`)
-          } else if (!foundProduct && !editingProduct) {
+          } else {
             setExistingProduct(null)
             setIsStockUpdate(false)
           }
@@ -124,12 +196,22 @@ export default function AddProduct() {
   }, [codigoBarras1, codigoBarras2, editingProduct, setValue])
 
   const loadProducts = async () => {
-    setLoading(true)
     try {
+      setLoading(true)
       const response = await productsApi.getAll(currentPage, 20, search)
-      setProducts(response.data.products)
-      setTotalPages(response.data.pagination.totalPages)
+      
+      // Verificar se a resposta tem a estrutura antiga ou nova
+      if (response.data.products) {
+        // Nova estrutura
+        setProducts(response.data.products)
+        setTotalPages(response.data.totalPages)
+      } else {
+        // Estrutura antiga (fallback)
+        setProducts(response.data)
+        setTotalPages(1)
+      }
     } catch (error) {
+      console.error('Erro ao carregar produtos:', error)
       toast.error('Erro ao carregar produtos')
     } finally {
       setLoading(false)
@@ -242,6 +324,7 @@ export default function AddProduct() {
       setEditingProduct(null)
       setExistingProduct(null)
       setIsStockUpdate(false)
+      setShowEditModal(false)
       loadProducts()
     } catch (error) {
       toast.error('Erro ao salvar produto')
@@ -249,10 +332,16 @@ export default function AddProduct() {
   }
 
   const handleEdit = (product: Product) => {
-    setEditingProduct(product)
+    console.log('🔧 Editando produto:', product.descricao, product.id)
+    
+    // Limpar todos os estados relacionados primeiro
     setExistingProduct(null)
     setIsStockUpdate(false)
-    setShowAddForm(true)
+    
+    // Configurar produto para edição
+    setEditingProduct(product)
+    
+    // Preencher o formulário com os dados do produto
     setValue('descricao', product.descricao)
     setValue('quantidade', product.quantidade)
     setValue('valor_unitario', product.valor_unitario)
@@ -260,18 +349,30 @@ export default function AddProduct() {
     setValue('categoria', product.categoria)
     setValue('codigo_barras_1', product.codigo_barras_1 || '')
     setValue('codigo_barras_2', product.codigo_barras_2 || '')
+    
+    // Abrir modal de edição
+    setShowEditModal(true)
+    
+    console.log('✅ Modal de edição aberto')
   }
 
-  const handleDelete = async (id: number) => {
-    if (confirm('Tem certeza que deseja excluir este produto?')) {
-      try {
-        await productsApi.delete(id)
-        toast.success('Produto excluído com sucesso!')
-        loadProducts()
-      } catch (error) {
-        toast.error('Erro ao excluir produto')
-      }
+  const handleDelete = async () => {
+    if (!productToDelete) return
+    
+    try {
+      await productsApi.delete(productToDelete.id!)
+      toast.success('Produto excluído com sucesso!')
+      setShowDeleteModal(false)
+      setProductToDelete(null)
+      loadProducts()
+    } catch (error) {
+      toast.error('Erro ao excluir produto')
     }
+  }
+
+  const openDeleteModal = (product: Product) => {
+    setProductToDelete(product)
+    setShowDeleteModal(true)
   }
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -515,6 +616,349 @@ export default function AddProduct() {
     setShowLabelModal(false)
   }
 
+  // Função para registrar conferência ou perda com modal
+  const openConferenceModal = (produto: Product) => {
+    setModalProduct(produto)
+    setModalQuantity('')
+    setModalObservations('')
+    setShowConferenceModal(true)
+  }
+
+  const openLossModal = (produto: Product) => {
+    setModalProduct(produto)
+    setModalQuantity('')
+    setModalObservations('')
+    setShowLossModal(true)
+  }
+
+  const handleConferenceSubmit = async () => {
+    if (!modalProduct || !modalQuantity) {
+      toast.error('Quantidade é obrigatória!')
+      return
+    }
+
+    const quantidadeNum = Number(modalQuantity)
+    if (isNaN(quantidadeNum) || quantidadeNum <= 0) {
+      toast.error('Quantidade inválida!')
+      return
+    }
+
+    // Calcular disponível: total - conferidos - perdas
+    const totalConferido = modalProduct.total_conferido || 0
+    const totalPerdas = modalProduct.total_perdas || 0
+    const disponivel = modalProduct.quantidade - totalConferido - totalPerdas
+
+    if (quantidadeNum > disponivel) {
+      toast.error(`Quantidade conferida não pode ser maior que o disponível (${disponivel})! 
+      Total: ${modalProduct.quantidade} | Já conferidos: ${totalConferido} | Já perdidos: ${totalPerdas}`)
+      return
+    }
+
+    try {
+      const response = await fetch('/api/estoque/registrar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          produto_id: modalProduct.id,
+          tipo: 'conferido',
+          quantidade: quantidadeNum,
+          observacoes: modalObservations || `Conferência de ${quantidadeNum} unidades`,
+          usuario_id: user?.id
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        toast.success(data.message)
+        setShowConferenceModal(false)
+        loadProducts() // Recarregar lista
+      } else {
+        const errorData = await response.json()
+        toast.error(errorData.error || 'Erro ao registrar conferência')
+      }
+    } catch (error) {
+      console.error('Erro ao registrar conferência:', error)
+      toast.error('Erro ao registrar conferência')
+    }
+  }
+
+  const handleLossSubmit = async () => {
+    if (!modalProduct || !modalQuantity) return
+
+    try {
+      const response = await fetch('/api/estoque', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          produto_id: modalProduct.id,
+          tipo: 'perda',
+          quantidade: parseInt(modalQuantity),
+          valor_unitario: modalProduct.valor_unitario,
+          observacoes: modalObservations
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        toast.success(data.message)
+        setShowLossModal(false)
+        loadProducts() // Recarregar lista
+      } else {
+        const errorData = await response.json()
+        toast.error(errorData.error || 'Erro ao registrar perda')
+      }
+    } catch (error) {
+      console.error('Erro ao registrar perda:', error)
+      toast.error('Erro ao registrar perda')
+    }
+  }
+
+  // Funções do Scanner
+  const openScannerModal = () => {
+    setShowScannerModal(true)
+    setScannerInput('')
+    setLastProcessedCode('')
+    setLastInputTime(0)
+    setScannerLoading(false)
+    setInsertingMessage('')
+    setScannerBlocked(false)
+  }
+
+  const closeScannerModal = () => {
+    setShowScannerModal(false)
+    setScannerInput('')
+    setLastProcessedCode('')
+    setLastInputTime(0)
+    setScannerLoading(false)
+    setInsertingMessage('')
+    setScannerBlocked(false)
+    if (scannerTimeoutRef.current) {
+      clearTimeout(scannerTimeoutRef.current)
+    }
+    if (insertingTimeoutRef.current) {
+      clearTimeout(insertingTimeoutRef.current)
+    }
+    if (blockTimeoutRef.current) {
+      clearTimeout(blockTimeoutRef.current)
+    }
+  }
+
+  const handleScannerInput = async (barcode?: string) => {
+    // Usar o valor atual do input se não for fornecido um código específico
+    const codeToProcess = barcode || scannerInput
+    
+    // Verificar se já está processando, se é o mesmo código ou se está bloqueado
+    if (scannerLoading || !codeToProcess.trim() || codeToProcess.length < 8 || codeToProcess === lastProcessedCode || scannerBlocked) {
+      return
+    }
+
+    console.log('🔍 Processando código:', codeToProcess)
+    setLastProcessedCode(codeToProcess)
+    setScannerLoading(true)
+    setScannerBlocked(true) // Bloquear scanner
+    setInsertingMessage('Inserindo...')
+    
+    try {
+      // Buscar produto pelo código de barras
+      const response = await productsApi.search(codeToProcess.trim())
+      const foundProduct = response.data.find((p: Product) => 
+        p.codigo_barras_1 === codeToProcess.trim() || p.codigo_barras_2 === codeToProcess.trim()
+      )
+
+      if (foundProduct) {
+        console.log('✅ Produto encontrado:', foundProduct.descricao)
+        
+        // Registrar conferência automaticamente
+        const conferenceResponse = await fetch('/api/estoque', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({
+            produto_id: foundProduct.id!,
+            tipo: 'conferido',
+            quantidade: 1,
+            observacoes: `Conferido via scanner automático em ${new Date().toLocaleString()}`,
+            usuario_id: user?.id
+          })
+        })
+
+        if (conferenceResponse.ok) {
+          setInsertingMessage('✅ Produto validado')
+          console.log('✅ Conferência registrada com sucesso')
+          loadProducts() // Recarregar lista
+          
+          // Mostrar toast após um pequeno delay
+          setTimeout(() => {
+            toast.success(`✅ Produto validado`)
+          }, 500)
+        } else {
+          const errorData = await conferenceResponse.json()
+          setInsertingMessage('❌ Erro ao conferir')
+          toast.error(`❌ Erro ao conferir: ${errorData.error || 'Erro desconhecido'}`)
+          console.error('❌ Erro na conferência:', errorData)
+        }
+      } else {
+        setInsertingMessage('❌ Produto não encontrado')
+        toast.error(`❌ Produto não encontrado: ${codeToProcess}`)
+        console.log('❌ Produto não encontrado para código:', codeToProcess)
+      }
+    } catch (error) {
+      console.error('❌ Erro ao processar escaneamento:', error)
+      setInsertingMessage('❌ Erro ao processar')
+      toast.error('❌ Erro ao processar escaneamento')
+    } finally {
+      setScannerLoading(false)
+      setScannerInput('') // Limpar campo automaticamente
+      
+      // Limpar mensagem de inserindo após 2 segundos
+      if (insertingTimeoutRef.current) {
+        clearTimeout(insertingTimeoutRef.current)
+      }
+      insertingTimeoutRef.current = window.setTimeout(() => {
+        setInsertingMessage('')
+      }, 2000)
+      
+      // Desbloquear scanner após 1 segundo
+      if (blockTimeoutRef.current) {
+        clearTimeout(blockTimeoutRef.current)
+      }
+      blockTimeoutRef.current = window.setTimeout(() => {
+        setScannerBlocked(false)
+        setLastProcessedCode('') // Permitir re-escaneamento do mesmo código
+        console.log('🔓 Scanner desbloqueado')
+      }, 1000)
+      
+      // Garantir que o input mantenha o foco
+      setTimeout(() => {
+        if (scannerInputRef.current) {
+          scannerInputRef.current.focus()
+        }
+      }, 100)
+    }
+  }
+
+  // Função para detectar automaticamente quando um código completo foi digitado
+  const handleScannerChange = (value: string) => {
+    // Se o scanner estiver bloqueado, não processar
+    if (scannerBlocked) {
+      console.log('🚫 Scanner bloqueado, aguarde...')
+      return
+    }
+
+    const currentTime = Date.now()
+    const timeDiff = currentTime - lastInputTime
+    
+    setScannerInput(value)
+    setLastInputTime(currentTime)
+    
+    // Limpar timeout anterior se existir
+    if (scannerTimeoutRef.current) {
+      clearTimeout(scannerTimeoutRef.current)
+    }
+    
+    // Se o código tem pelo menos 8 caracteres e não está carregando
+    if (value.length >= 8 && !scannerLoading && value !== lastProcessedCode) {
+      // Detectar se foi inserido muito rapidamente (scanner) ou se é um código longo
+      const isScannedCode = value.length >= 12 || (value.length >= 8 && timeDiff < 50)
+      
+      if (isScannedCode) {
+        // Para códigos escaneados, aguardar um pouco mais para garantir que o código completo foi inserido
+        console.log('🚀 Código detectado como escaneado, aguardando conclusão...', value)
+        scannerTimeoutRef.current = window.setTimeout(() => {
+          // Usar o valor atual do input para garantir que temos o código completo
+          const currentValue = scannerInputRef.current?.value || scannerInput
+          if (currentValue && currentValue.length >= 8 && !scannerLoading) {
+            console.log('🚀 Processando código escaneado completo:', currentValue)
+            handleScannerInput(currentValue)
+          }
+        }, 150) // Aguardar 150ms para garantir que o código completo foi inserido
+      } else {
+        // Para códigos digitados manualmente, usar debounce maior
+        console.log('⌨️ Código detectado como digitado, aguardando...', value)
+        scannerTimeoutRef.current = window.setTimeout(() => {
+          const currentValue = scannerInputRef.current?.value || scannerInput
+          if (currentValue && currentValue.length >= 8) {
+            handleScannerInput(currentValue)
+          }
+        }, 500)
+      }
+    }
+  }
+
+  const handleScannerKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !scannerLoading) {
+      e.preventDefault()
+      if (scannerTimeoutRef.current) {
+        clearTimeout(scannerTimeoutRef.current)
+      }
+      if (scannerInput.length >= 8) {
+        handleScannerInput(scannerInput)
+      }
+    }
+  }
+
+  // Função para detectar paste (códigos colados ou escaneados muito rápido)
+  const handleScannerPaste = (e: React.ClipboardEvent) => {
+    const pastedText = e.clipboardData.getData('text')
+    if (pastedText.length >= 8) {
+      e.preventDefault()
+      setScannerInput(pastedText)
+      // Processar códigos colados após um delay para garantir que foram inseridos completamente
+      setTimeout(() => {
+        if (!scannerLoading && pastedText !== lastProcessedCode) {
+          console.log('📋 Processando código colado:', pastedText)
+          handleScannerInput(pastedText)
+        }
+      }, 200) // Aguardar 200ms para códigos colados
+    }
+  }
+
+  // Função para processar quando o campo perde o foco (útil para scanners)
+  const handleScannerBlur = () => {
+    if (scannerInput.length >= 8 && !scannerLoading && scannerInput !== lastProcessedCode) {
+      if (scannerTimeoutRef.current) {
+        clearTimeout(scannerTimeoutRef.current)
+      }
+      handleScannerInput(scannerInput)
+    }
+  }
+
+  // Função para mostrar detalhes de conferência
+  const showConferenceDetails = async (produto: Product) => {
+    if (!produto.id || !produto.total_conferido || produto.total_conferido === 0) {
+      toast.error('Este produto ainda não foi conferido')
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/estoque/produto/${produto.id}/conferencias`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setConferenceDetails(data)
+        setSelectedProductForDetails(produto)
+        setShowConferenceDetailsModal(true)
+      } else {
+        toast.error('Erro ao buscar detalhes de conferência')
+      }
+    } catch (error) {
+      console.error('Erro ao buscar detalhes de conferência:', error)
+      toast.error('Erro ao buscar detalhes de conferência')
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -532,9 +976,15 @@ export default function AddProduct() {
             Template Excel
           </button>
           <button
+            onClick={openScannerModal}
+            className="btn-secondary flex items-center bg-green-600 hover:bg-green-700 text-white"
+          >
+            <Scan className="w-4 h-4 mr-2" />
+            Escanear Produtos
+          </button>
+          <button
             onClick={() => {
               setShowAddForm(true)
-              setEditingProduct(null)
               setExistingProduct(null)
               setIsStockUpdate(false)
               reset()
@@ -548,16 +998,15 @@ export default function AddProduct() {
       </div>
 
       {/* Add/Edit Form */}
-      {showAddForm && (
+      {showAddForm && !editingProduct && (
         <div className="card">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-semibold text-white">
-              {editingProduct ? 'Editar Produto' : 'Adicionar Produto'}
+              Adicionar Produto
             </h3>
             <button
               onClick={() => {
                 setShowAddForm(false)
-                setEditingProduct(null)
                 setExistingProduct(null)
                 setIsStockUpdate(false)
                 reset()
@@ -671,15 +1120,22 @@ export default function AddProduct() {
               <select
                 {...register('categoria', { required: 'Categoria é obrigatória' })}
                 className="input-field w-full"
-                readOnly={isStockUpdate}
+                disabled={isStockUpdate}
               >
                 <option value="">Selecione uma categoria</option>
                 {categoriaOptions.map((option) => (
                   <option key={option.value} value={option.value}>
-                    {option.label}
+                    {option.label} - {option.porcentagem} desconto
                   </option>
                 ))}
               </select>
+              {categoria && (
+                <p className="text-xs text-mixjovim-gold mt-1 font-medium">
+                  {categoria === 'Informática' && '✨ 30% de desconto aplicado no valor de venda'}
+                  {categoria === 'Eletrodoméstico' && '✨ 35% de desconto aplicado no valor de venda'}
+                  {categoria === 'Variados' && '✨ 40% de desconto aplicado no valor de venda'}
+                </p>
+              )}
               {errors.categoria && (
                 <p className="text-red-400 text-sm mt-1">{errors.categoria.message}</p>
               )}
@@ -709,13 +1165,12 @@ export default function AddProduct() {
 
             <div className="md:col-span-2 flex gap-3">
               <button type="submit" className="btn-primary">
-                {isStockUpdate ? 'Atualizar Estoque' : editingProduct ? 'Atualizar Produto' : 'Adicionar Produto'}
+                {isStockUpdate ? 'Atualizar Estoque' : 'Adicionar Produto'}
               </button>
               <button
                 type="button"
                 onClick={() => {
                   setShowAddForm(false)
-                  setEditingProduct(null)
                   setExistingProduct(null)
                   setIsStockUpdate(false)
                   reset()
@@ -813,7 +1268,29 @@ export default function AddProduct() {
                           )}
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-gray-300">{product.quantidade}</td>
+                      <td className="py-3 px-4">
+                        <div className="text-white font-medium">
+                          <div className="flex items-center gap-3">
+                            <span className="text-lg">{product.quantidade}</span>
+                            {((product.total_conferido && product.total_conferido > 0) || (product.total_perdas && product.total_perdas > 0)) && (
+                              <div className="flex flex-col gap-1 text-xs">
+                                {product.total_conferido && product.total_conferido > 0 && (
+                                  <div className="flex items-center gap-1">
+                                    <Check className="w-3 h-3 text-green-400" />
+                                    <span className="text-green-400">{product.total_conferido} conferido</span>
+                                  </div>
+                                )}
+                                {product.total_perdas && product.total_perdas > 0 && (
+                                  <div className="flex items-center gap-1">
+                                    <X className="w-3 h-3 text-red-400" />
+                                    <span className="text-red-400">{product.total_perdas} perdas</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
                       <td className="py-3 px-4">
                         {product.valor_unitario > 0 ? (
                           <input
@@ -869,45 +1346,79 @@ export default function AddProduct() {
                         )}
                       </td>
                       <td className="py-3 px-4">
-                        <select
-                          value={product.categoria}
-                          onChange={(e) => updateProductInline(product.id!, 'categoria', e.target.value)}
-                          className={`px-2 py-1 rounded text-xs bg-gray-700 border border-gray-600 text-white min-w-[120px] ${
-                            product.categoria === 'Selecione a categoria' ? 'text-yellow-400 border-yellow-500' : ''
-                          }`}
-                          style={{
-                            backgroundColor: '#374151',
-                            color: product.categoria === 'Selecione a categoria' ? '#fbbf24' : '#ffffff',
-                            border: product.categoria === 'Selecione a categoria' ? '1px solid #f59e0b' : '1px solid #4B5563'
-                          }}
-                        >
-                          {product.categoria === 'Selecione a categoria' && (
-                            <option value="Selecione a categoria" style={{ backgroundColor: '#374151', color: '#fbbf24' }}>
-                              Selecione a categoria
-                            </option>
-                          )}
-                          {categoriaOptions.map((option) => (
-                            <option 
-                              key={option.value} 
-                              value={option.value}
-                              style={{ backgroundColor: '#374151', color: '#ffffff' }}
+                        {product.categoria && categoriaOptions.find(cat => cat.value === product.categoria) ? (
+                          <div>
+                            <select
+                              defaultValue={product.categoria}
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-sm"
+                              onBlur={(e) => {
+                                const newValue = e.target.value
+                                if (newValue !== product.categoria && newValue !== '') {
+                                  updateProductInline(product.id!, 'categoria', newValue)
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.currentTarget.blur()
+                                }
+                              }}
                             >
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        {['Informática', 'Eletrodoméstico', 'Variados'].includes(product.categoria) && (
-                          <div className="mt-1">
-                            <span className="text-xs text-green-400">
-                              {product.categoria === 'Informática' && '(-30%)'}
-                              {product.categoria === 'Eletrodoméstico' && '(-35%)'}
-                              {product.categoria === 'Variados' && '(-40%)'}
-                            </span>
+                              {categoriaOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-xs text-mixjovim-gold mt-1">
+                              {categoriaOptions.find(cat => cat.value === product.categoria)?.porcentagem} desconto
+                            </p>
+                          </div>
+                        ) : (
+                          <div>
+                            <select
+                              defaultValue=""
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-yellow-400 text-sm"
+                              onBlur={(e) => {
+                                const newValue = e.target.value
+                                if (newValue !== '') {
+                                  updateProductInline(product.id!, 'categoria', newValue)
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.currentTarget.blur()
+                                }
+                              }}
+                            >
+                              <option value="" disabled>Selecione a categoria</option>
+                              {categoriaOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label} - {option.porcentagem}
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-xs text-gray-400 mt-1">
+                              Selecione para aplicar desconto
+                            </p>
                           </div>
                         )}
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex gap-2">
+                          <button
+                            onClick={() => openConferenceModal(product)}
+                            className="p-1 text-green-400 hover:text-green-300"
+                            title="Registrar conferência"
+                          >
+                            <ClipboardCheck className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => openLossModal(product)}
+                            className="p-1 text-red-400 hover:text-red-300"
+                            title="Registrar perda"
+                          >
+                            <AlertTriangle className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => handleEdit(product)}
                             className="p-1 text-blue-400 hover:text-blue-300"
@@ -923,9 +1434,9 @@ export default function AddProduct() {
                             <Printer className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleDelete(product.id!)}
+                            onClick={() => openDeleteModal(product)}
                             className="p-1 text-red-400 hover:text-red-300"
-                            title="Deletar produto"
+                            title="Excluir produto"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -999,6 +1510,543 @@ export default function AddProduct() {
                 className="btn-secondary"
               >
                 Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Conferência */}
+      {showConferenceModal && modalProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-96">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-white">Registrar Conferência</h2>
+              <button
+                onClick={() => setShowConferenceModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-300 mb-2">Produto:</p>
+              <p className="text-white font-medium">{modalProduct.descricao}</p>
+              <div className="text-sm text-gray-400 space-y-1">
+                <p>Total: {modalProduct.quantidade} unidades</p>
+                {(modalProduct.total_conferido && modalProduct.total_conferido > 0) && (
+                  <p className="text-green-400">✓ Já conferidos: {modalProduct.total_conferido}</p>
+                )}
+                {(modalProduct.total_perdas && modalProduct.total_perdas > 0) && (
+                  <p className="text-red-400">✗ Já perdidos: {modalProduct.total_perdas}</p>
+                )}
+                <p className="text-blue-400 font-medium">
+                  📦 Disponível para conferir: {modalProduct.quantidade - (modalProduct.total_conferido || 0) - (modalProduct.total_perdas || 0)}
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Quantidade Conferida *
+              </label>
+              <input
+                type="number"
+                min="1"
+                max={modalProduct.quantidade - (modalProduct.total_conferido || 0) - (modalProduct.total_perdas || 0)}
+                value={modalQuantity}
+                onChange={(e) => setModalQuantity(e.target.value)}
+                className="input-field w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                placeholder="Digite a quantidade conferida"
+                autoFocus
+              />
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Observações (opcional)
+              </label>
+              <textarea
+                value={modalObservations}
+                onChange={(e) => setModalObservations(e.target.value)}
+                className="input-field w-full h-20 resize-none"
+                placeholder="Observações sobre a conferência..."
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleConferenceSubmit}
+                className="btn-primary flex-1"
+              >
+                ✅ Confirmar
+              </button>
+              <button
+                onClick={() => setShowConferenceModal(false)}
+                className="btn-secondary"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Perda */}
+      {showLossModal && modalProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-96">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-white">Registrar Perda</h2>
+              <button
+                onClick={() => setShowLossModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-300 mb-2">Produto:</p>
+              <p className="text-white font-medium">{modalProduct.descricao}</p>
+              <div className="text-sm text-gray-400 space-y-1">
+                <p>Total: {modalProduct.quantidade} unidades</p>
+                {(modalProduct.total_conferido && modalProduct.total_conferido > 0) && (
+                  <p className="text-green-400">✓ Já conferidos: {modalProduct.total_conferido}</p>
+                )}
+                {(modalProduct.total_perdas && modalProduct.total_perdas > 0) && (
+                  <p className="text-red-400">✗ Já perdidos: {modalProduct.total_perdas}</p>
+                )}
+               
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Quantidade Perdida *
+              </label>
+              <input
+                type="number"
+                min="1"
+                max={modalProduct.quantidade - (modalProduct.total_conferido || 0) - (modalProduct.total_perdas || 0)}
+                value={modalQuantity}
+                onChange={(e) => setModalQuantity(e.target.value)}
+                className="input-field w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                placeholder="Digite a quantidade perdida"
+                autoFocus
+              />
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Motivo da Perda *
+              </label>
+              <textarea
+                value={modalObservations}
+                onChange={(e) => setModalObservations(e.target.value)}
+                className="input-field w-full h-20 resize-none"
+                placeholder="Descreva o motivo da perda (avaria, vencimento, etc.)"
+                required
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleLossSubmit}
+                className="btn-danger flex-1"
+              >
+                ⚠️ Confirmar
+              </button>
+              <button
+                onClick={() => setShowLossModal(false)}
+                className="btn-secondary"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edição */}
+      {showEditModal && editingProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-white">Editar Produto</h2>
+              <button
+                onClick={() => {
+                  setShowEditModal(false)
+                  setEditingProduct(null)
+                  reset()
+                }}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Descrição *
+                </label>
+                <input
+                  {...register('descricao', { required: 'Descrição é obrigatória' })}
+                  className="input-field w-full"
+                  placeholder="Digite a descrição do produto"
+                />
+                {errors.descricao && (
+                  <p className="text-red-400 text-sm mt-1">{errors.descricao.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Quantidade *
+                </label>
+                <input
+                  type="number"
+                  {...register('quantidade', { required: 'Quantidade é obrigatória', min: 0 })}
+                  className="input-field w-full"
+                  placeholder="0"
+                />
+                {errors.quantidade && (
+                  <p className="text-red-400 text-sm mt-1">{errors.quantidade.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Valor Unitário *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  {...register('valor_unitario', { required: 'Valor unitário é obrigatório', min: 0 })}
+                  className="input-field w-full"
+                  placeholder="0.00"
+                />
+                {errors.valor_unitario && (
+                  <p className="text-red-400 text-sm mt-1">{errors.valor_unitario.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Valor de Venda * (Calculado Automaticamente)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  {...register('valor_venda', { required: 'Valor de venda é obrigatório', min: 0 })}
+                  className="input-field w-full bg-gray-700"
+                  placeholder="0.00"
+                  readOnly={true}
+                />
+                {categoria && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    {categoria === 'Informática' && '30% de desconto aplicado'}
+                    {categoria === 'Eletrodoméstico' && '35% de desconto aplicado'}
+                    {categoria === 'Variados' && '40% de desconto aplicado'}
+                  </p>
+                )}
+                {errors.valor_venda && (
+                  <p className="text-red-400 text-sm mt-1">{errors.valor_venda.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Categoria *
+                </label>
+                <select
+                  {...register('categoria', { required: 'Categoria é obrigatória' })}
+                  className="input-field w-full"
+                >
+                  <option value="">Selecione uma categoria</option>
+                  {categoriaOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label} - {option.porcentagem} desconto
+                    </option>
+                  ))}
+                </select>
+                {categoria && (
+                  <p className="text-xs text-mixjovim-gold mt-1 font-medium">
+                    {categoria === 'Informática' && '✨ 30% de desconto aplicado no valor de venda'}
+                    {categoria === 'Eletrodoméstico' && '✨ 35% de desconto aplicado no valor de venda'}
+                    {categoria === 'Variados' && '✨ 40% de desconto aplicado no valor de venda'}
+                  </p>
+                )}
+                {errors.categoria && (
+                  <p className="text-red-400 text-sm mt-1">{errors.categoria.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Código de Barras 1
+                </label>
+                <input
+                  {...register('codigo_barras_1')}
+                  className="input-field w-full"
+                  placeholder="Digite o código de barras"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Código de Barras 2
+                </label>
+                <input
+                  {...register('codigo_barras_2')}
+                  className="input-field w-full"
+                  placeholder="Digite o código de barras alternativo"
+                />
+              </div>
+
+              <div className="md:col-span-2 flex gap-3">
+                <button type="submit" className="btn-primary">
+                  Atualizar Produto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false)
+                    setEditingProduct(null)
+                    reset()
+                  }}
+                  className="btn-secondary"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Exclusão */}
+      {showDeleteModal && productToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-96">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-white">Confirmar Exclusão</h2>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-sm text-gray-300 mb-2">Tem certeza que deseja excluir este produto?</p>
+              <p className="text-white font-medium">{productToDelete.descricao}</p>
+              <p className="text-sm text-gray-400 mt-2">Esta ação não pode ser desfeita.</p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleDelete}
+                className="btn-danger flex-1"
+              >
+                🗑️ Confirmar
+              </button>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="btn-secondary"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal do Scanner */}
+      {showScannerModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                <Scan className="w-6 h-6 text-green-400 mr-3" />
+                <h2 className="text-xl font-semibold text-white">Scanner de Produtos</h2>
+              </div>
+              <button
+                onClick={closeScannerModal}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Instruções */}
+            <div className="mb-6 p-4 bg-blue-600/20 border border-blue-600/30 rounded-lg">
+              <div className="flex items-center mb-2">
+                <AlertCircle className="w-5 h-5 text-blue-400 mr-2" />
+                <h4 className="text-blue-400 font-medium">Scanner Ultra-Rápido - 100% Automático</h4>
+              </div>
+              <ul className="text-sm text-gray-300 space-y-1">
+                <li>• Digite ou escaneie o código de barras no campo abaixo (mínimo 8 caracteres)</li>
+               
+              </ul>
+            </div>
+
+            {/* Campo de entrada do scanner */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Código de Barras - Scanner Automático
+                {scannerBlocked && (
+                  <span className="ml-2 text-red-400 text-xs">🚫 Bloqueado por 1 segundo</span>
+                )}
+              </label>
+              <div className="flex gap-3">
+                <input
+                  ref={scannerInputRef}
+                  type="text"
+                  value={scannerInput}
+                  onChange={(e) => handleScannerChange(e.target.value)}
+                  onKeyPress={handleScannerKeyPress}
+                  onBlur={handleScannerBlur}
+                  onPaste={handleScannerPaste}
+                  className={`input-field flex-1 text-lg font-mono ${scannerBlocked ? 'bg-red-900/20 border-red-600' : ''}`}
+                  placeholder="Digite ou escaneie o código de barras (mínimo 8 caracteres)..."
+                  autoFocus
+                  disabled={scannerLoading || scannerBlocked}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                {scannerLoading && (
+                  <div className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    Processando...
+                  </div>
+                )}
+                {scannerBlocked && !scannerLoading && (
+                  <div className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg">
+                    <div className="w-4 h-4 mr-2">🚫</div>
+                    Bloqueado
+                  </div>
+                )}
+              </div>
+              
+              {/* Mensagem de status */}
+              {insertingMessage && (
+                <div className="mt-3 p-3 rounded-lg text-center font-medium text-lg">
+                  {insertingMessage.includes('✅') && (
+                    <div className="bg-green-600/20 border border-green-600/30 text-green-400">
+                      {insertingMessage}
+                    </div>
+                  )}
+                  {insertingMessage.includes('❌') && (
+                    <div className="bg-red-600/20 border border-red-600/30 text-red-400">
+                      {insertingMessage}
+                    </div>
+                  )}
+                  {insertingMessage === 'Inserindo...' && (
+                    <div className="bg-blue-600/20 border border-blue-600/30 text-blue-400 flex items-center justify-center">
+                      <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mr-2" />
+                      {insertingMessage}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Botão de fechar */}
+            <div className="flex justify-end">
+              <button
+                onClick={closeScannerModal}
+                className="btn-secondary"
+                disabled={scannerLoading}
+              >
+                Fechar Scanner
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Detalhes de Conferência */}
+      {showConferenceDetailsModal && selectedProductForDetails && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-[600px] max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-white">Detalhes de Conferência</h2>
+              <button
+                onClick={() => setShowConferenceDetailsModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-300 mb-2">Produto:</p>
+              <p className="text-white font-medium">{selectedProductForDetails.descricao}</p>
+              <div className="text-sm text-gray-400 space-y-1">
+                <p>Total conferido: <span className="text-green-400 font-medium">{selectedProductForDetails.total_conferido}</span></p>
+                <p>Última conferência: <span className="text-blue-400">{selectedProductForDetails.ultima_conferencia ? new Date(selectedProductForDetails.ultima_conferencia).toLocaleString('pt-BR') : '-'}</span></p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-lg font-medium text-white mb-3">Histórico de Conferências</h3>
+              
+              {conferenceDetails.length === 0 ? (
+                <div className="text-center py-8">
+                  <ClipboardCheck className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-400">Nenhuma conferência encontrada</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {conferenceDetails.map((conferencia: any) => (
+                    <div key={conferencia.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-mixjovim-gold" />
+                          <span className="text-mixjovim-gold font-medium">
+                            {conferencia.usuario_nome || 'Sistema'}
+                          </span>
+                        </div>
+                        <span className="text-sm text-gray-400">
+                          {new Date(conferencia.created_at).toLocaleString('pt-BR')}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-400">Quantidade:</span>
+                          <span className="text-green-400 font-medium ml-2">{conferencia.quantidade}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">Valor Total:</span>
+                          <span className="text-white font-medium ml-2">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(conferencia.valor_total)}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {conferencia.observacoes && (
+                        <div className="mt-2">
+                          <span className="text-gray-400 text-sm">Observações:</span>
+                          <p className="text-gray-300 text-sm mt-1">{conferencia.observacoes}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setShowConferenceDetailsModal(false)}
+                className="btn-secondary"
+              >
+                Fechar
               </button>
             </div>
           </div>

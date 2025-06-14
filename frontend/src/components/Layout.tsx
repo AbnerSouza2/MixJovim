@@ -12,7 +12,8 @@ import {
   DollarSign,
   FileText,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  ClipboardCheck
 } from 'lucide-react'
 
 interface LayoutProps {
@@ -53,6 +54,12 @@ export default function Layout({ children }: LayoutProps) {
         icon: ShoppingCart, 
         path: '/pdv',
         permission: 'pdv'
+      },
+      { 
+        name: 'Estoque', 
+        icon: ClipboardCheck, 
+        path: '/estoque',
+        permission: 'products'
       },
       { 
         name: 'Financeiro', 

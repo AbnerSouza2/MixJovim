@@ -5,9 +5,10 @@ import authRoutes from './routes/auth'
 import productRoutes from './routes/products'
 import salesRoutes from './routes/sales'
 import dashboardRoutes from './routes/dashboard'
+import estoqueRoutes from './routes/estoque'
 
 const app = express()
-const PORT = process.env.PORT || 5001
+const PORT = 5001
 
 // Middleware
 app.use(cors({
@@ -21,6 +22,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/products', productRoutes)
 app.use('/api/sales', salesRoutes)
 app.use('/api/dashboard', dashboardRoutes)
+app.use('/api/estoque', estoqueRoutes)
 
 // Rota de teste
 app.get('/api/health', (req, res) => {

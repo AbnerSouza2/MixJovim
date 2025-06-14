@@ -104,6 +104,36 @@ async function createTables() {
       FOREIGN KEY (produto_id) REFERENCES products (id) ON DELETE CASCADE
     )
   `)
+
+  // Tabela de estoque (conferências e perdas)
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS estoque (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      produto_id INT NOT NULL,
+      tipo ENUM('conferido', 'perda') NOT NULL,
+      quantidade INT NOT NULL,
+      valor_unitario DECIMAL(10,2) NOT NULL,
+      valor_total DECIMAL(10,2) NOT NULL,
+      observacoes TEXT,
+      usuario_id INT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (produto_id) REFERENCES products (id) ON DELETE CASCADE,
+      FOREIGN KEY (usuario_id) REFERENCES users (id) ON DELETE SET NULL
+    )
+  `)
+
+  // Nova tabela para controlar vendas por produto
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS produto_vendas (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      produto_id INT NOT NULL,
+      quantidade_vendida INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (produto_id) REFERENCES products (id) ON DELETE CASCADE,
+      UNIQUE KEY unique_produto (produto_id)
+    )
+  `)
 }
 
 async function insertInitialData() {

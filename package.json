@@ -4,16 +4,27 @@
   "description": "Sistema SaaS moderno de gestão de estoque com PDV integrado",
   "scripts": {
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:clean": "npm run kill:node && npm run dev",
+    "kill:node": "taskkill /F /IM node.exe 2>nul || echo \"Nenhum processo Node.js ativo\"",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
     "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
     "build": "cd frontend && npm run build",
     "start": "cd backend && npm start"
   },
-  "keywords": ["saas", "estoque", "pdv", "gestao"],
+  "keywords": [
+    "saas",
+    "estoque",
+    "pdv",
+    "gestao"
+  ],
   "author": "Abner Souza",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "mysql2": "^3.14.1"
   }
-} 
+}

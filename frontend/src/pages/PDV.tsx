@@ -7,7 +7,9 @@ import { ShoppingCart, X, Search, Package, ArrowLeft, CreditCard, Calendar, Plus
 interface Product {
   id: number
   descricao: string
-  quantidade: number
+  quantidade_disponivel: number
+  estoque_conferido: number
+  quantidade_vendida: number
   valor_unitario: number
   valor_venda: number
   categoria: string
@@ -66,18 +68,18 @@ export default function PDV() {
   const loadProducts = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/products/all')
+      const response = await api.get('/estoque/produtos-disponiveis')
       // Garantir que os valores sejam números
       const productsWithNumbers = response.data.map((product: any) => ({
         ...product,
         valor_unitario: Number(product.valor_unitario) || 0,
         valor_venda: Number(product.valor_venda) || 0,
-        quantidade: Number(product.quantidade) || 0
+        quantidade_disponivel: Number(product.quantidade_disponivel) || 0
       }))
       setAllProducts(productsWithNumbers)
     } catch (error) {
       console.error('Erro ao carregar produtos:', error)
-      toast.error('Erro ao carregar produtos')
+      toast.error('Erro ao carregar produtos do estoque')
     } finally {
       setLoading(false)
     }
@@ -100,7 +102,7 @@ export default function PDV() {
       toast.success(`Produto adicionado: ${product.descricao}`)
     } else {
       setSelectedProduct(null)
-      toast.error('Produto não encontrado')
+      toast.error('Produto não encontrado no estoque')
     }
   }
 
@@ -110,7 +112,7 @@ export default function PDV() {
       ...product,
       valor_unitario: Number(product.valor_unitario) || 0,
       valor_venda: Number(product.valor_venda) || 0,
-      quantidade: Number(product.quantidade) || 0
+      quantidade_disponivel: Number(product.quantidade_disponivel) || 0
     }
 
     if (quantity <= 0) {
@@ -118,8 +120,8 @@ export default function PDV() {
       return
     }
 
-    if (quantity > productWithNumbers.quantidade) {
-      toast.error('Quantidade indisponível no estoque')
+    if (quantity > productWithNumbers.quantidade_disponivel) {
+      toast.error('Quantidade indisponível no estoque conferido')
       return
     }
 
@@ -131,8 +133,8 @@ export default function PDV() {
       const newCart = [...cart]
       const newQuantity = newCart[existingItemIndex].quantidade + quantity
       
-      if (newQuantity > productWithNumbers.quantidade) {
-        toast.error('Quantidade total excede o estoque disponível')
+      if (newQuantity > productWithNumbers.quantidade_disponivel) {
+        toast.error('Quantidade total excede o estoque conferido disponível')
         return
       }
       
@@ -166,8 +168,8 @@ export default function PDV() {
     }
 
     const item = cart[index]
-    if (newQuantity > item.produto.quantidade) {
-      toast.error('Quantidade excede o estoque disponível')
+    if (newQuantity > item.produto.quantidade_disponivel) {
+      toast.error('Quantidade excede o estoque conferido disponível')
       return
     }
 
@@ -757,7 +759,10 @@ export default function PDV() {
                         <div className="flex-1">
                           <h5 className="font-medium text-white text-sm">{product.descricao}</h5>
                           <p className="text-sm text-gray-400">
-                            Estoque: {product.quantidade} unidades
+                            Vendidos/Estoque: <span className="text-blue-400 font-bold">{product.quantidade_vendida || 0}</span>/<span className="text-green-400 font-bold">{product.estoque_conferido || 0}</span>
+                          </p>
+                          <p className="text-sm text-gray-400">
+                            Disponível: <span className="text-white font-bold">{product.quantidade_disponivel}</span> unidades
                           </p>
                           <p className="text-sm text-gray-400">
                             Categoria: {product.categoria}

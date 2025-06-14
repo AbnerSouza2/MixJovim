@@ -28,22 +28,36 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
       const insertResult = saleResult as any
       const saleId = insertResult.insertId
 
-      // Adicionar itens da venda e atualizar estoque
+      // Adicionar itens da venda e atualizar controle de vendas
       for (const produto of produtos) {
-        // Verificar se há estoque suficiente
-        const [stockRows] = await db.execute(
-          'SELECT quantidade FROM products WHERE id = ?',
-          [produto.produto_id]
-        )
+        // Verificar estoque disponível (conferidos - perdas - vendidos)
+        const [stockRows] = await db.execute(`
+          SELECT 
+            p.id,
+            p.descricao,
+            p.valor_venda,
+            COALESCE(SUM(CASE WHEN e.tipo = 'conferido' THEN e.quantidade ELSE 0 END), 0) as conferidos,
+            COALESCE(SUM(CASE WHEN e.tipo = 'perda' THEN e.quantidade ELSE 0 END), 0) as perdas,
+            COALESCE(pv.quantidade_vendida, 0) as vendidos,
+            (COALESCE(SUM(CASE WHEN e.tipo = 'conferido' THEN e.quantidade ELSE 0 END), 0) -
+             COALESCE(pv.quantidade_vendida, 0)) as disponivel
+          FROM products p
+          LEFT JOIN estoque e ON p.id = e.produto_id
+          LEFT JOIN produto_vendas pv ON p.id = pv.produto_id
+          WHERE p.id = ?
+          GROUP BY p.id, p.descricao, p.valor_venda, pv.quantidade_vendida
+        `, [produto.produto_id])
 
         const stockData = stockRows as any[]
         if (stockData.length === 0) {
           throw new Error(`Produto ID ${produto.produto_id} não encontrado`)
         }
 
-        const stockAvailable = stockData[0].quantidade
+        const stockInfo = stockData[0]
+        const stockAvailable = stockInfo.disponivel
+
         if (stockAvailable < produto.quantidade) {
-          throw new Error(`Estoque insuficiente para produto ID ${produto.produto_id}`)
+          throw new Error(`Estoque insuficiente para produto "${stockInfo.descricao}". Disponível: ${stockAvailable}, Solicitado: ${produto.quantidade}`)
         }
 
         // Inserir item da venda
@@ -52,11 +66,13 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
           [saleId, produto.produto_id, produto.quantidade, produto.valor_unitario, produto.subtotal]
         )
 
-        // Atualizar estoque
-        await db.execute(
-          'UPDATE products SET quantidade = quantidade - ? WHERE id = ?',
-          [produto.quantidade, produto.produto_id]
-        )
+        // Atualizar ou inserir na tabela produto_vendas
+        await db.execute(`
+          INSERT INTO produto_vendas (produto_id, quantidade_vendida) 
+          VALUES (?, ?) 
+          ON DUPLICATE KEY UPDATE 
+          quantidade_vendida = quantidade_vendida + VALUES(quantidade_vendida)
+        `, [produto.produto_id, produto.quantidade])
       }
 
       await db.query('COMMIT')
@@ -171,9 +187,11 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res) => {
     const { id } = req.params
     const db = getDatabase()
 
-    // Buscar venda
+    // Buscar venda com data formatada
     const [saleRows] = await db.execute(
-      'SELECT * FROM sales WHERE id = ?',
+      `SELECT id, total, discount, payment_method, 
+              DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as created_at
+       FROM sales WHERE id = ?`,
       [id]
     )
 

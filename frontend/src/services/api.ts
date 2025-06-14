@@ -50,6 +50,10 @@ export interface Product {
   codigo_barras_2?: string
   created_at?: string
   updated_at?: string
+  total_conferido?: number
+  total_perdas?: number
+  conferentes?: string
+  ultima_conferencia?: string
 }
 
 export interface Sale {

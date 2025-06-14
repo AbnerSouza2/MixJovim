@@ -5,6 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "dev:clean": "npm run kill:node && npm run dev",
+    "kill:node": "taskkill /F /IM node.exe 2>nul || echo \"Nenhum processo Node.js ativo\"",
     "build": "tsc",
     "start": "node dist/index.js",
     "db:setup": "ts-node src/database/setup.ts"

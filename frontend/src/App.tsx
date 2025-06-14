@@ -6,6 +6,7 @@ import AddProduct from './pages/AddProduct'
 import PDV from './pages/PDV'
 import Financeiro from './pages/Financeiro'
 import Funcionarios from './pages/Funcionarios'
+import Estoque from './pages/Estoque'
 import RelatorioVendas from './pages/RelatorioVendas'
 import RelatorioProdutos from './pages/RelatorioProdutos'
 import Layout from './components/Layout'
@@ -45,6 +46,16 @@ function AppRoutes() {
         element={
           <ProtectedRoute requiredPermission="pdv">
             <PDV />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/estoque" 
+        element={
+          <ProtectedRoute requiredPermission="products">
+            <Layout>
+              <Estoque />
+            </Layout>
           </ProtectedRoute>
         } 
       />

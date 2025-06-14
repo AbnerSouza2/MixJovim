@@ -38,13 +38,20 @@ router.post('/login', async (req, res) => {
     // Parse permissions
     let permissions = {}
     try {
-      permissions = user.permissions || {
-        pdv: false,
-        products: false,
-        dashboard: false,
-        reports: false
+      if (typeof user.permissions === 'string') {
+        permissions = JSON.parse(user.permissions)
+      } else if (typeof user.permissions === 'object' && user.permissions !== null) {
+        permissions = user.permissions
+      } else {
+        permissions = {
+          pdv: false,
+          products: false,
+          dashboard: false,
+          reports: false
+        }
       }
     } catch (e) {
+      console.error('Erro ao parsear permissões:', e)
       permissions = {
         pdv: false,
         products: false,

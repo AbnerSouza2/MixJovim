@@ -27,54 +27,75 @@ router.get('/all', authenticateToken, async (req: AuthRequest, res) => {
   }
 })
 
-// Listar produtos com paginação e busca
+// Listar produtos com paginação
 router.get('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1
-    const limit = parseInt(req.query.limit as string) || 20
+    const limit = parseInt(req.query.limit as string) || 10
     const search = req.query.search as string || ''
     const offset = (page - 1) * limit
-
+    
     const db = getDatabase()
-
+    
     let whereClause = ''
     let params: any[] = []
-
+    
+    // Construir cláusula WHERE para busca
     if (search) {
-      whereClause = `WHERE descricao LIKE ? OR codigo_barras_1 LIKE ? OR codigo_barras_2 LIKE ?`
-      const searchTerm = `%${search}%`
-      params = [searchTerm, searchTerm, searchTerm]
+      whereClause = `WHERE (p.descricao LIKE ? OR p.codigo_barras_1 LIKE ? OR p.codigo_barras_2 LIKE ?)`
+      params = [`%${search}%`, `%${search}%`, `%${search}%`]
     }
-
-    // Contar total de produtos
-    const [countRows] = await db.execute(
-      `SELECT COUNT(*) as total FROM products ${whereClause}`,
-      params
-    )
-    const countResult = countRows as any[]
-    const total = countResult[0].total
-
-    // Buscar produtos
-    const [productRows] = await db.execute(
-      `SELECT * FROM products ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
-    )
-
-    const totalPages = Math.ceil(total / limit)
-
+    
+    // Consulta principal que exclui produtos totalmente conferidos/perdidos
+    const mainQuery = `
+      SELECT p.*, 
+             COALESCE(SUM(CASE WHEN e.tipo = 'conferido' THEN e.quantidade ELSE 0 END), 0) as total_conferido,
+             COALESCE(SUM(CASE WHEN e.tipo = 'perda' THEN e.quantidade ELSE 0 END), 0) as total_perdas,
+             GROUP_CONCAT(DISTINCT CASE WHEN e.tipo = 'conferido' THEN u.username END SEPARATOR ', ') as conferentes,
+             MAX(CASE WHEN e.tipo = 'conferido' THEN e.created_at END) as ultima_conferencia
+      FROM products p
+      LEFT JOIN estoque e ON p.id = e.produto_id
+      LEFT JOIN users u ON e.usuario_id = u.id
+      ${whereClause}
+      GROUP BY p.id, p.descricao, p.quantidade, p.valor_unitario, p.valor_venda, p.categoria, p.codigo_barras_1, p.codigo_barras_2, p.created_at, p.updated_at
+      HAVING (total_conferido + total_perdas) < p.quantidade OR (total_conferido = 0 AND total_perdas = 0)
+      ORDER BY p.descricao ASC
+      LIMIT ? OFFSET ?
+    `
+    
+    // Consulta para contar total (com mesmo filtro) - CORRIGIDA
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM (
+        SELECT p.id, p.quantidade,
+               COALESCE(SUM(CASE WHEN e.tipo = 'conferido' THEN e.quantidade ELSE 0 END), 0) as total_conferido,
+               COALESCE(SUM(CASE WHEN e.tipo = 'perda' THEN e.quantidade ELSE 0 END), 0) as total_perdas
+        FROM products p
+        LEFT JOIN estoque e ON p.id = e.produto_id
+        ${whereClause}
+        GROUP BY p.id, p.quantidade
+        HAVING (total_conferido + total_perdas) < p.quantidade 
+               OR (total_conferido = 0 AND total_perdas = 0)
+      ) as filtered_products
+    `
+    
+    const queryParams = [...params, limit, offset]
+    const countParams = [...params]
+    
+    const [productRows] = await db.execute(mainQuery, queryParams)
+    const [countRows] = await db.execute(countQuery, countParams)
+    
+    const products = productRows as Product[]
+    const totalCount = (countRows as any[])[0].total
+    
     res.json({
-      products: productRows,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
+      products,
+      total: totalCount,
+      page,
+      totalPages: Math.ceil(totalCount / limit)
     })
   } catch (error) {
-    console.error('Erro ao listar produtos:', error)
+    console.error('Erro ao buscar produtos:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })
@@ -425,6 +446,29 @@ router.get('/template', authenticateToken, (req: AuthRequest, res) => {
     res.send(buffer)
   } catch (error) {
     console.error('Erro ao gerar template:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+// Nova rota para listar produtos totalmente conferidos/perdidos (para controle de estoque)
+router.get('/conferidos', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const db = getDatabase()
+    
+    const [productRows] = await db.execute(`
+      SELECT p.*, 
+             COALESCE(SUM(CASE WHEN e.tipo = 'conferido' THEN e.quantidade ELSE 0 END), 0) as total_conferido,
+             COALESCE(SUM(CASE WHEN e.tipo = 'perda' THEN e.quantidade ELSE 0 END), 0) as total_perdas
+      FROM products p
+      LEFT JOIN estoque e ON p.id = e.produto_id
+      GROUP BY p.id, p.descricao, p.quantidade, p.valor_unitario, p.valor_venda, p.categoria, p.codigo_barras_1, p.codigo_barras_2, p.created_at, p.updated_at
+      HAVING (total_conferido + total_perdas) >= p.quantidade AND p.quantidade > 0
+      ORDER BY p.descricao ASC
+    `)
+    
+    res.json(productRows)
+  } catch (error) {
+    console.error('Erro ao buscar produtos conferidos:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })

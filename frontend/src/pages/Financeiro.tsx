@@ -100,13 +100,13 @@ export default function Financeiro() {
 
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString)
-    const localDate = new Date(date.getTime() + date.getTimezoneOffset() * 60000)
-    return localDate.toLocaleString('pt-BR', {
+    return date.toLocaleString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      second: '2-digit'
     })
   }
 
