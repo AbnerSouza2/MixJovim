@@ -67,15 +67,16 @@ router.get('/resumo', async (req, res) => {
   try {
     const db = getDatabase()
     
-    // Buscar conferidos e perdas
+    // Buscar conferidos e perdas - calculando o valor baseado no valor_venda atual
     const [estoqueRows] = await db.execute(`
       SELECT 
-        tipo,
-        SUM(quantidade) as total_quantidade,
-        SUM(valor_total) as total_valor
-      FROM estoque
-      WHERE tipo IN ('conferido', 'perda')
-      GROUP BY tipo
+        e.tipo,
+        SUM(e.quantidade) as total_quantidade,
+        SUM(e.quantidade * p.valor_venda) as total_valor
+      FROM estoque e
+      JOIN products p ON e.produto_id = p.id
+      WHERE e.tipo IN ('conferido', 'perda')
+      GROUP BY e.tipo
     `)
     
     // Buscar vendidos
@@ -208,34 +209,68 @@ router.post('/registrar', async (req, res) => {
     if (!produto_id || !tipo || !quantidade) {
       return res.status(400).json({ error: 'Dados obrigatórios: produto_id, tipo, quantidade' })
     }
+
+    // Validar se quantidade é um número positivo
+    const quantidadeNum = Number(quantidade)
+    if (isNaN(quantidadeNum) || quantidadeNum <= 0) {
+      return res.status(400).json({ error: 'Quantidade deve ser um número positivo' })
+    }
     
     const db = getDatabase()
     
-    // Buscar dados do produto
-    const [productRows] = await db.execute(
-      'SELECT valor_unitario, valor_venda FROM products WHERE id = ?',
-      [produto_id]
-    )
+    // Buscar dados do produto e verificar estoque disponível
+    const [productRows] = await db.execute(`
+      SELECT 
+        p.id,
+        p.descricao,
+        p.quantidade as estoque_total,
+        p.valor_unitario,
+        p.valor_venda,
+        COALESCE(SUM(CASE WHEN e.tipo = 'conferido' THEN e.quantidade ELSE 0 END), 0) as total_conferido,
+        COALESCE(SUM(CASE WHEN e.tipo = 'perda' THEN e.quantidade ELSE 0 END), 0) as total_perdas
+      FROM products p
+      LEFT JOIN estoque e ON p.id = e.produto_id
+      WHERE p.id = ?
+      GROUP BY p.id, p.descricao, p.quantidade, p.valor_unitario, p.valor_venda
+    `, [produto_id])
     
     if (!Array.isArray(productRows) || productRows.length === 0) {
       return res.status(404).json({ error: 'Produto não encontrado' })
     }
     
     const produto = productRows[0] as any
+    const estoqueTotal = Number(produto.estoque_total)
+    const totalConferido = Number(produto.total_conferido)
+    const totalPerdas = Number(produto.total_perdas)
+    const disponivel = estoqueTotal - totalConferido - totalPerdas
+
+    // Validar se a quantidade solicitada não excede o disponível
+    if (quantidadeNum > disponivel) {
+      return res.status(400).json({ 
+        error: `Quantidade ${tipo === 'conferido' ? 'conferida' : 'de perda'} (${quantidadeNum}) excede o disponível (${disponivel}). Total: ${estoqueTotal}, Já conferidos: ${totalConferido}, Já perdidos: ${totalPerdas}`
+      })
+    }
+    
     const valor_unitario = parseFloat(produto.valor_unitario)
     const valor_venda = parseFloat(produto.valor_venda)
-    const valor_total = valor_venda * quantidade // Usar valor de venda para calcular o total
+    const valor_total = valor_venda * quantidadeNum // Usar valor de venda para calcular o total
     
     // Inserir registro no estoque
     const [result] = await db.execute(
       `INSERT INTO estoque (produto_id, tipo, quantidade, valor_unitario, valor_total, observacoes, usuario_id) 
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [produto_id, tipo, quantidade, valor_unitario, valor_total, observacoes || null, usuario_id || null]
+      [produto_id, tipo, quantidadeNum, valor_unitario, valor_total, observacoes || null, usuario_id || null]
     )
     
+    const novoDisponivel = disponivel - quantidadeNum
+    
     res.json({ 
-      message: `${tipo === 'conferido' ? 'Conferência' : 'Perda'} registrada com sucesso!`,
-      id: (result as any).insertId
+      message: `${tipo === 'conferido' ? 'Conferência' : 'Perda'} registrada com sucesso! Disponível agora: ${novoDisponivel}`,
+      id: (result as any).insertId,
+      produto: produto.descricao,
+      quantidade_processada: quantidadeNum,
+      disponivel_anterior: disponivel,
+      disponivel_atual: novoDisponivel
     })
   } catch (error) {
     console.error('Erro ao registrar no estoque:', error)
@@ -279,6 +314,31 @@ router.get('/produto/:id/conferencias', async (req, res) => {
     res.json(rows)
   } catch (error) {
     console.error('Erro ao buscar conferências do produto:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+// Nova rota para buscar detalhes de perdas por produto
+router.get('/produto/:id/perdas', async (req, res) => {
+  try {
+    const { id } = req.params
+    const db = getDatabase()
+    
+    const [rows] = await db.execute(`
+      SELECT 
+        e.*,
+        u.username as usuario_nome,
+        p.descricao as produto_descricao
+      FROM estoque e
+      LEFT JOIN users u ON e.usuario_id = u.id
+      JOIN products p ON e.produto_id = p.id
+      WHERE e.produto_id = ? AND e.tipo = 'perda'
+      ORDER BY e.created_at DESC
+    `, [id])
+    
+    res.json(rows)
+  } catch (error) {
+    console.error('Erro ao buscar perdas do produto:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })

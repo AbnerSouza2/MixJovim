@@ -12,6 +12,8 @@ interface User {
     products: boolean
     dashboard: boolean
     reports: boolean
+    estoque: boolean
+    funcionarios: boolean
   }
 }
 
@@ -24,6 +26,8 @@ interface NewUser {
     products: boolean
     dashboard: boolean
     reports: boolean
+    estoque: boolean
+    funcionarios: boolean
   }
 }
 
@@ -41,7 +45,9 @@ export default function Funcionarios() {
       pdv: false,
       products: false,
       dashboard: false,
-      reports: false
+      reports: false,
+      estoque: false,
+      funcionarios: false
     }
   })
 
@@ -117,7 +123,9 @@ export default function Funcionarios() {
         pdv: false,
         products: false,
         dashboard: false,
-        reports: false
+        reports: false,
+        estoque: false,
+        funcionarios: false
       }
     })
     setShowModal(true)
@@ -150,11 +158,15 @@ export default function Funcionarios() {
         pdv: false,
         products: false,
         dashboard: false,
-        reports: false
+        reports: false,
+        estoque: false,
+        funcionarios: false
       }
     })
     setShowPassword(false)
   }
+
+
 
   const openModal = () => {
     resetForm()
@@ -192,11 +204,22 @@ export default function Funcionarios() {
   const getPermissionsBadges = (permissions?: User['permissions']) => {
     if (!permissions) return []
     
-    const badges = []
-    if (permissions.pdv) badges.push('PDV')
-    if (permissions.products) badges.push('Produtos')
-    if (permissions.dashboard) badges.push('Dashboard')
-    if (permissions.reports) badges.push('Relatórios')
+    const permissionLabels = {
+      pdv: 'PDV',
+      products: 'Produtos', 
+      dashboard: 'Dashboard',
+      reports: 'Relatórios',
+      estoque: 'Estoque',
+      funcionarios: 'Funcionários'
+    }
+    
+    const badges: string[] = []
+    Object.entries(permissions).forEach(([key, value]) => {
+      if (value && permissionLabels[key as keyof typeof permissionLabels]) {
+        const label = permissionLabels[key as keyof typeof permissionLabels]
+        badges.push(label)
+      }
+    })
     
     return badges
   }
@@ -429,6 +452,24 @@ export default function Funcionarios() {
                       className="mr-3 text-mixjovim-gold focus:ring-mixjovim-gold"
                     />
                     <span className="text-white">Visualizar Relatórios</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={newUser.permissions.estoque}
+                      onChange={() => handlePermissionChange('estoque')}
+                      className="mr-3 text-mixjovim-gold focus:ring-mixjovim-gold"
+                    />
+                    <span className="text-white">Acesso ao Estoque</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={newUser.permissions.funcionarios}
+                      onChange={() => handlePermissionChange('funcionarios')}
+                      className="mr-3 text-mixjovim-gold focus:ring-mixjovim-gold"
+                    />
+                    <span className="text-white">Gerenciar Funcionários</span>
                   </label>
                 </div>
               </div>

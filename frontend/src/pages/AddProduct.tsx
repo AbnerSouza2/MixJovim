@@ -8,14 +8,15 @@ import {
   Download,
   FileSpreadsheet,
   AlertCircle,
-  Check,
   X,
   Copy,
   Printer,
   ClipboardCheck,
   AlertTriangle,
   Scan,
-  User
+  User,
+  Shuffle,
+  Eye
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { productsApi, Product } from '../services/api'
@@ -74,6 +75,11 @@ export default function AddProduct() {
   const [showConferenceDetailsModal, setShowConferenceDetailsModal] = useState(false)
   const [conferenceDetails, setConferenceDetails] = useState<any[]>([])
   const [selectedProductForDetails, setSelectedProductForDetails] = useState<Product | null>(null)
+  
+  // Estados para detalhes de perdas
+  const [showLossDetailsModal, setShowLossDetailsModal] = useState(false)
+  const [lossDetails, setLossDetails] = useState<any[]>([])
+  const [selectedProductForLossDetails, setSelectedProductForLossDetails] = useState<Product | null>(null)
   
   // Ref para o timeout do debounce e input
   const scannerTimeoutRef = useRef<number | null>(null)
@@ -674,6 +680,8 @@ export default function AddProduct() {
         const data = await response.json()
         toast.success(data.message)
         setShowConferenceModal(false)
+        setModalQuantity('')
+        setModalObservations('')
         loadProducts() // Recarregar lista
       } else {
         const errorData = await response.json()
@@ -686,10 +694,35 @@ export default function AddProduct() {
   }
 
   const handleLossSubmit = async () => {
-    if (!modalProduct || !modalQuantity) return
+    if (!modalProduct || !modalQuantity) {
+      toast.error('Quantidade é obrigatória!')
+      return
+    }
+
+    if (!modalObservations || modalObservations.trim() === '') {
+      toast.error('Motivo da perda é obrigatório!')
+      return
+    }
+
+    const quantidadeNum = Number(modalQuantity)
+    if (isNaN(quantidadeNum) || quantidadeNum <= 0) {
+      toast.error('Quantidade inválida!')
+      return
+    }
+
+    // Calcular disponível: total - conferidos - perdas
+    const totalConferido = modalProduct.total_conferido || 0
+    const totalPerdas = modalProduct.total_perdas || 0
+    const disponivel = modalProduct.quantidade - totalConferido - totalPerdas
+
+    if (quantidadeNum > disponivel) {
+      toast.error(`Quantidade de perda não pode ser maior que o disponível (${disponivel})! 
+      Total: ${modalProduct.quantidade} | Já conferidos: ${totalConferido} | Já perdidos: ${totalPerdas}`)
+      return
+    }
 
     try {
-      const response = await fetch('/api/estoque', {
+      const response = await fetch('/api/estoque/registrar', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -698,9 +731,9 @@ export default function AddProduct() {
         body: JSON.stringify({
           produto_id: modalProduct.id,
           tipo: 'perda',
-          quantidade: parseInt(modalQuantity),
-          valor_unitario: modalProduct.valor_unitario,
-          observacoes: modalObservations
+          quantidade: quantidadeNum,
+          observacoes: modalObservations || `Perda de ${quantidadeNum} unidades`,
+          usuario_id: user?.id
         })
       })
 
@@ -708,6 +741,8 @@ export default function AddProduct() {
         const data = await response.json()
         toast.success(data.message)
         setShowLossModal(false)
+        setModalQuantity('')
+        setModalObservations('')
         loadProducts() // Recarregar lista
       } else {
         const errorData = await response.json()
@@ -774,8 +809,20 @@ export default function AddProduct() {
       if (foundProduct) {
         console.log('✅ Produto encontrado:', foundProduct.descricao)
         
+        // Verificar se há estoque disponível antes de conferir
+        const totalConferido = foundProduct.total_conferido || 0
+        const totalPerdas = foundProduct.total_perdas || 0
+        const disponivel = foundProduct.quantidade - totalConferido - totalPerdas
+
+        if (disponivel <= 0) {
+          setInsertingMessage('❌ Sem estoque disponível')
+          toast.error(`❌ ${foundProduct.descricao}: Sem estoque disponível para conferir`)
+          console.log('❌ Sem estoque disponível para:', foundProduct.descricao)
+          return
+        }
+
         // Registrar conferência automaticamente
-        const conferenceResponse = await fetch('/api/estoque', {
+        const conferenceResponse = await fetch('/api/estoque/registrar', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -956,6 +1003,87 @@ export default function AddProduct() {
     } catch (error) {
       console.error('Erro ao buscar detalhes de conferência:', error)
       toast.error('Erro ao buscar detalhes de conferência')
+    }
+  }
+
+  // Função para mostrar detalhes das perdas
+  const showLossDetails = async (produto: Product) => {
+    if (!produto.id || !produto.total_perdas || produto.total_perdas === 0) {
+      toast.error('Este produto não tem perdas registradas')
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/estoque/produto/${produto.id}/perdas`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setLossDetails(data)
+        setSelectedProductForLossDetails(produto)
+        setShowLossDetailsModal(true)
+      } else {
+        toast.error('Erro ao buscar detalhes das perdas')
+      }
+    } catch (error) {
+      console.error('Erro ao buscar detalhes das perdas:', error)
+      toast.error('Erro ao buscar detalhes das perdas')
+    }
+  }
+
+  // Função para gerar código de barras aleatório de 8 dígitos
+  const generateRandomBarcode = async (): Promise<string> => {
+    let attempts = 0
+    const maxAttempts = 100
+
+    while (attempts < maxAttempts) {
+      // Gerar número aleatório de 8 dígitos
+      const randomCode = Math.floor(10000000 + Math.random() * 90000000).toString()
+      
+      try {
+        // Verificar se o código já existe
+        const response = await productsApi.search(randomCode)
+        const existingProduct = response.data.find((p: Product) => 
+          p.codigo_barras_1 === randomCode || p.codigo_barras_2 === randomCode
+        )
+
+        if (!existingProduct) {
+          return randomCode
+        }
+      } catch (error) {
+        // Se houver erro na busca, considerar que o código não existe
+        return randomCode
+      }
+
+      attempts++
+    }
+
+    // Se não conseguir gerar um código único após 100 tentativas
+    throw new Error('Não foi possível gerar um código único')
+  }
+
+  // Função para gerar código para o campo 1
+  const generateBarcodeField1 = async () => {
+    try {
+      const newCode = await generateRandomBarcode()
+      setValue('codigo_barras_1', newCode)
+      toast.success(`Código gerado: ${newCode}`)
+    } catch (error) {
+      toast.error('Erro ao gerar código de barras')
+    }
+  }
+
+  // Função para gerar código para o campo 2
+  const generateBarcodeField2 = async () => {
+    try {
+      const newCode = await generateRandomBarcode()
+      setValue('codigo_barras_2', newCode)
+      toast.success(`Código gerado: ${newCode}`)
+    } catch (error) {
+      toast.error('Erro ao gerar código de barras')
     }
   }
 
@@ -1145,22 +1273,44 @@ export default function AddProduct() {
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Código de Barras 1
               </label>
-              <input
-                {...register('codigo_barras_1')}
-                className="input-field w-full"
-                placeholder="Digite o código de barras"
-              />
+              <div className="relative">
+                <input
+                  {...register('codigo_barras_1')}
+                  className="input-field w-full pr-20"
+                  placeholder="Digite o código de barras"
+                />
+                <button
+                  type="button"
+                  onClick={generateBarcodeField1}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 text-xs rounded flex items-center gap-1 transition-colors"
+                  title="Gerar código aleatório de 8 dígitos"
+                >
+                  <Shuffle className="w-3 h-3" />
+                  Gerar
+                </button>
+              </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Código de Barras 2
               </label>
-              <input
-                {...register('codigo_barras_2')}
-                className="input-field w-full"
-                placeholder="Digite o código de barras alternativo"
-              />
+              <div className="relative">
+                <input
+                  {...register('codigo_barras_2')}
+                  className="input-field w-full pr-20"
+                  placeholder="Digite o código de barras alternativo"
+                />
+                <button
+                  type="button"
+                  onClick={generateBarcodeField2}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 text-xs rounded flex items-center gap-1 transition-colors"
+                  title="Gerar código aleatório de 8 dígitos"
+                >
+                  <Shuffle className="w-3 h-3" />
+                  Gerar
+                </button>
+              </div>
             </div>
 
             <div className="md:col-span-2 flex gap-3">
@@ -1273,18 +1423,24 @@ export default function AddProduct() {
                           <div className="flex items-center gap-3">
                             <span className="text-lg">{product.quantidade}</span>
                             {((product.total_conferido && product.total_conferido > 0) || (product.total_perdas && product.total_perdas > 0)) && (
-                              <div className="flex flex-col gap-1 text-xs">
+                              <div className="flex items-center gap-2 text-xs ml-2">
                                 {product.total_conferido && product.total_conferido > 0 && (
-                                  <div className="flex items-center gap-1">
-                                    <Check className="w-3 h-3 text-green-400" />
-                                    <span className="text-green-400">{product.total_conferido} conferido</span>
-                                  </div>
+                                  <button
+                                    onClick={() => showConferenceDetails(product)}
+                                    className="text-green-400 font-bold hover:text-green-300 cursor-pointer"
+                                    title="Ver detalhes das conferências"
+                                  >
+                                    +{product.total_conferido}
+                                  </button>
                                 )}
                                 {product.total_perdas && product.total_perdas > 0 && (
-                                  <div className="flex items-center gap-1">
-                                    <X className="w-3 h-3 text-red-400" />
-                                    <span className="text-red-400">{product.total_perdas} perdas</span>
-                                  </div>
+                                  <button
+                                    onClick={() => showLossDetails(product)}
+                                    className="text-red-400 font-bold hover:text-red-300 cursor-pointer"
+                                    title="Ver motivos das perdas"
+                                  >
+                                    -{product.total_perdas}
+                                  </button>
                                 )}
                               </div>
                             )}
@@ -1557,10 +1713,19 @@ export default function AddProduct() {
                 max={modalProduct.quantidade - (modalProduct.total_conferido || 0) - (modalProduct.total_perdas || 0)}
                 value={modalQuantity}
                 onChange={(e) => setModalQuantity(e.target.value)}
-                className="input-field w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className={`input-field w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                  modalQuantity && Number(modalQuantity) > (modalProduct.quantidade - (modalProduct.total_conferido || 0) - (modalProduct.total_perdas || 0)) 
+                    ? 'border-red-500 bg-red-900/20' 
+                    : ''
+                }`}
                 placeholder="Digite a quantidade conferida"
                 autoFocus
               />
+              {modalQuantity && Number(modalQuantity) > (modalProduct.quantidade - (modalProduct.total_conferido || 0) - (modalProduct.total_perdas || 0)) && (
+                <p className="text-red-400 text-sm mt-1">
+                  ⚠️ Quantidade excede o disponível ({modalProduct.quantidade - (modalProduct.total_conferido || 0) - (modalProduct.total_perdas || 0)})
+                </p>
+              )}
             </div>
 
             <div className="mb-6">
@@ -1578,7 +1743,8 @@ export default function AddProduct() {
             <div className="flex gap-3">
               <button
                 onClick={handleConferenceSubmit}
-                className="btn-primary flex-1"
+                disabled={!modalQuantity || Number(modalQuantity) <= 0 || Number(modalQuantity) > (modalProduct.quantidade - (modalProduct.total_conferido || 0) - (modalProduct.total_perdas || 0))}
+                className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 ✅ Confirmar
               </button>
@@ -1618,7 +1784,9 @@ export default function AddProduct() {
                 {(modalProduct.total_perdas && modalProduct.total_perdas > 0) && (
                   <p className="text-red-400">✗ Já perdidos: {modalProduct.total_perdas}</p>
                 )}
-               
+                <p className="text-blue-400 font-medium">
+                  📦 Disponível para marcar como perda: {modalProduct.quantidade - (modalProduct.total_conferido || 0) - (modalProduct.total_perdas || 0)}
+                </p>
               </div>
             </div>
 
@@ -1632,10 +1800,19 @@ export default function AddProduct() {
                 max={modalProduct.quantidade - (modalProduct.total_conferido || 0) - (modalProduct.total_perdas || 0)}
                 value={modalQuantity}
                 onChange={(e) => setModalQuantity(e.target.value)}
-                className="input-field w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className={`input-field w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                  modalQuantity && Number(modalQuantity) > (modalProduct.quantidade - (modalProduct.total_conferido || 0) - (modalProduct.total_perdas || 0)) 
+                    ? 'border-red-500 bg-red-900/20' 
+                    : ''
+                }`}
                 placeholder="Digite a quantidade perdida"
                 autoFocus
               />
+              {modalQuantity && Number(modalQuantity) > (modalProduct.quantidade - (modalProduct.total_conferido || 0) - (modalProduct.total_perdas || 0)) && (
+                <p className="text-red-400 text-sm mt-1">
+                  ⚠️ Quantidade excede o disponível ({modalProduct.quantidade - (modalProduct.total_conferido || 0) - (modalProduct.total_perdas || 0)})
+                </p>
+              )}
             </div>
 
             <div className="mb-6">
@@ -1654,7 +1831,8 @@ export default function AddProduct() {
             <div className="flex gap-3">
               <button
                 onClick={handleLossSubmit}
-                className="btn-danger flex-1"
+                disabled={!modalQuantity || Number(modalQuantity) <= 0 || Number(modalQuantity) > (modalProduct.quantidade - (modalProduct.total_conferido || 0) - (modalProduct.total_perdas || 0)) || !modalObservations || modalObservations.trim() === ''}
+                className="btn-danger flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 ⚠️ Confirmar
               </button>
@@ -1788,22 +1966,44 @@ export default function AddProduct() {
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Código de Barras 1
                 </label>
-                <input
-                  {...register('codigo_barras_1')}
-                  className="input-field w-full"
-                  placeholder="Digite o código de barras"
-                />
+                <div className="relative">
+                  <input
+                    {...register('codigo_barras_1')}
+                    className="input-field w-full pr-20"
+                    placeholder="Digite o código de barras"
+                  />
+                  <button
+                    type="button"
+                    onClick={generateBarcodeField1}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 text-xs rounded flex items-center gap-1 transition-colors"
+                    title="Gerar código aleatório de 8 dígitos"
+                  >
+                    <Shuffle className="w-3 h-3" />
+                    Gerar
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Código de Barras 2
                 </label>
-                <input
-                  {...register('codigo_barras_2')}
-                  className="input-field w-full"
-                  placeholder="Digite o código de barras alternativo"
-                />
+                <div className="relative">
+                  <input
+                    {...register('codigo_barras_2')}
+                    className="input-field w-full pr-20"
+                    placeholder="Digite o código de barras alternativo"
+                  />
+                  <button
+                    type="button"
+                    onClick={generateBarcodeField2}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 text-xs rounded flex items-center gap-1 transition-colors"
+                    title="Gerar código aleatório de 8 dígitos"
+                  >
+                    <Shuffle className="w-3 h-3" />
+                    Gerar
+                  </button>
+                </div>
               </div>
 
               <div className="md:col-span-2 flex gap-3">
@@ -2044,6 +2244,90 @@ export default function AddProduct() {
             <div className="flex justify-end mt-6">
               <button
                 onClick={() => setShowConferenceDetailsModal(false)}
+                className="btn-secondary"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Detalhes das Perdas */}
+      {showLossDetailsModal && selectedProductForLossDetails && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-[600px] max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-white">Detalhes das Perdas</h2>
+              <button
+                onClick={() => setShowLossDetailsModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-300 mb-2">Produto:</p>
+              <p className="text-white font-medium">{selectedProductForLossDetails.descricao}</p>
+              <div className="text-sm text-gray-400 space-y-1">
+                <p>Total perdido: <span className="text-red-400 font-medium">{selectedProductForLossDetails.total_perdas}</span></p>
+                <p>Última perda: <span className="text-blue-400">{selectedProductForLossDetails.ultima_perda ? new Date(selectedProductForLossDetails.ultima_perda).toLocaleString('pt-BR') : '-'}</span></p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-lg font-medium text-white mb-3">Histórico de Perdas e Motivos</h3>
+              
+              {lossDetails.length === 0 ? (
+                <div className="text-center py-8">
+                  <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-400">Nenhuma perda encontrada</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {lossDetails.map((perda: any) => (
+                    <div key={perda.id} className="bg-red-900/20 border border-red-600/30 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-red-400" />
+                          <span className="text-red-400 font-medium">
+                            {perda.usuario_nome || 'Sistema'}
+                          </span>
+                        </div>
+                        <span className="text-sm text-gray-400">
+                          {new Date(perda.created_at).toLocaleString('pt-BR')}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                        <div>
+                          <span className="text-gray-400">Quantidade:</span>
+                          <span className="text-red-400 font-medium ml-2">{perda.quantidade}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">Valor Perdido:</span>
+                          <span className="text-white font-medium ml-2">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(perda.valor_total)}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {perda.observacoes && (
+                        <div className="bg-gray-800 rounded p-3 border-l-4 border-red-500">
+                          <span className="text-red-400 text-sm font-medium">Motivo da Perda:</span>
+                          <p className="text-gray-300 text-sm mt-1 font-medium">{perda.observacoes}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setShowLossDetailsModal(false)}
                 className="btn-secondary"
               >
                 Fechar

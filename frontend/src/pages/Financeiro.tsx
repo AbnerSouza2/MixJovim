@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import api from '../services/api'
+import { useAuth } from '../contexts/AuthContext'
 import toast from 'react-hot-toast'
 import { 
   DollarSign, 
@@ -12,7 +13,8 @@ import {
   Package,
   CreditCard,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  Lock
 } from 'lucide-react'
 
 interface Sale {
@@ -34,8 +36,11 @@ interface SaleItem {
 }
 
 export default function Financeiro() {
+  const { user } = useAuth()
   const [sales, setSales] = useState<Sale[]>([])
   const [loading, setLoading] = useState(true)
+  
+  const isAdmin = user?.role === 'admin'
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date()
     return today.toISOString().split('T')[0]
@@ -113,6 +118,28 @@ export default function Financeiro() {
   const formatDisplayDate = (dateString: string) => {
     const [year, month, day] = dateString.split('-')
     return `${day}/${month}/${year}`
+  }
+
+  // Se não for admin, mostrar tela de acesso restrito
+  if (!isAdmin) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center max-w-md">
+          <div className="mb-6">
+            <Lock className="w-24 h-24 mx-auto text-gray-600 mb-4" />
+            <h2 className="text-2xl font-bold text-white mb-2">Acesso Restrito</h2>
+            <p className="text-gray-400">
+              As informações financeiras são confidenciais e estão disponíveis apenas para administradores.
+            </p>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <p className="text-sm text-gray-300">
+              <strong>Motivo:</strong> Proteção de dados financeiros e comerciais
+            </p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

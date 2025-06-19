@@ -73,4 +73,209 @@
   .stat-card-gold {
     @apply stat-card border-l-4 border-l-mixjovim-gold;
   }
+
+  /* Scrollbar customizado */
+  .scrollbar-custom {
+    scrollbar-width: thin;
+    scrollbar-color: #f9a825 #1f2937;
+  }
+
+  .scrollbar-custom::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+
+  .scrollbar-custom::-webkit-scrollbar-track {
+    background: #1f2937;
+    border-radius: 4px;
+  }
+
+  .scrollbar-custom::-webkit-scrollbar-thumb {
+    background: #f9a825;
+    border-radius: 4px;
+    transition: background 0.2s ease;
+  }
+
+  .scrollbar-custom::-webkit-scrollbar-thumb:hover {
+    background: #ffd95a;
+  }
+
+  .scrollbar-custom::-webkit-scrollbar-corner {
+    background: #1f2937;
+  }
+} 
+
+/* Animações customizadas para a página de login */
+@layer utilities {
+  /* Animação de flutuação suave para partículas */
+  @keyframes floatSoft {
+    0%, 100% {
+      transform: translateY(0px) rotate(0deg);
+      opacity: 0.3;
+    }
+    50% {
+      transform: translateY(-20px) rotate(180deg);
+      opacity: 0.8;
+    }
+  }
+
+  /* Animação de brilho pulsante */
+  @keyframes shimmer {
+    0% {
+      opacity: 0.2;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.8;
+      transform: scale(1.05);
+    }
+    100% {
+      opacity: 0.2;
+      transform: scale(1);
+    }
+  }
+
+  /* Animação de drift lateral */
+  @keyframes drift {
+    0% {
+      transform: translateX(0px) translateY(0px);
+    }
+    33% {
+      transform: translateX(30px) translateY(-10px);
+    }
+    66% {
+      transform: translateX(-20px) translateY(-20px);
+    }
+    100% {
+      transform: translateX(0px) translateY(0px);
+    }
+  }
+
+  /* Animação de entrada suave */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Animação dos feixes de luz dourados */
+  @keyframes lightBeam {
+    0% {
+      opacity: 0;
+      transform: scaleX(0);
+    }
+    50% {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+    100% {
+      opacity: 0;
+      transform: scaleX(0);
+    }
+  }
+
+  /* Animação da barra de progresso */
+  @keyframes loadingBar {
+    0% {
+      transform: translateX(-100%);
+    }
+    50% {
+      transform: translateX(0%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  /* Animação de crescimento da logo */
+  @keyframes logoGrow {
+    0% {
+      transform: scale(0.1);
+      opacity: 0;
+    }
+    50% {
+      opacity: 0.8;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  /* Animação de explosão de luz */
+  @keyframes lightExplosion {
+    0% {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.2);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(2);
+    }
+  }
+
+  /* Classes de animação */
+  .animate-float-soft {
+    animation: floatSoft 6s ease-in-out infinite;
+  }
+
+  .animate-shimmer {
+    animation: shimmer 3s ease-in-out infinite;
+  }
+
+  .animate-drift {
+    animation: drift 8s ease-in-out infinite;
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.8s ease-out;
+  }
+
+  .animate-light-beam {
+    animation: lightBeam 1.5s ease-in-out;
+  }
+
+  .animate-loading-bar {
+    animation: loadingBar 2s ease-in-out infinite;
+  }
+
+  .animate-logo-grow {
+    animation: logoGrow 1.5s ease-out;
+  }
+
+  .animate-light-explosion {
+    animation: lightExplosion 1s ease-out;
+  }
+
+  /* Efeito de glassmorphism */
+  .glass-effect {
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  /* Hover effect para logo */
+  .logo-hover-effect:hover {
+    transform: scale(1.05);
+    transition: transform 0.3s ease;
+  }
+
+  /* Efeito de partículas douradas */
+  .golden-particles::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 50%, transparent, rgba(249, 168, 37, 0.1));
+    animation: shimmer 4s ease-in-out infinite;
+  }
 } 

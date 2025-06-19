@@ -22,11 +22,15 @@ import {
   Legend
 } from 'recharts'
 import { dashboardApi, DashboardStats } from '../services/api'
+import { useAuth } from '../contexts/AuthContext'
 import toast from 'react-hot-toast'
 
 export default function Dashboard() {
+  const { user } = useAuth()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
+  
+  const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
     loadStats()
@@ -49,6 +53,14 @@ export default function Dashboard() {
       style: 'currency',
       currency: 'BRL'
     }).format(value)
+  }
+
+  // Função para ocultar valores sensíveis de funcionários
+  const formatSensitiveValue = (value: number, type: 'currency' | 'number' = 'currency') => {
+    if (!isAdmin) {
+      return type === 'currency' ? 'R$ ***' : '***'
+    }
+    return type === 'currency' ? formatCurrency(value) : value.toString()
   }
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444']
@@ -76,7 +88,7 @@ export default function Dashboard() {
             <div>
               <p className="text-sm font-medium text-gray-400">Vendas do Mês</p>
               <p className="text-2xl font-bold text-white mt-1">
-                {formatCurrency(stats?.vendas_mes || 0)}
+                {formatSensitiveValue(stats?.vendas_mes || 0)}
               </p>
               <p className="text-sm text-green-400 mt-1">
                 <TrendingUp className="w-4 h-4 inline mr-1" />
@@ -94,7 +106,7 @@ export default function Dashboard() {
             <div>
               <p className="text-sm font-medium text-gray-400">Vendas do Dia</p>
               <p className="text-2xl font-bold text-white mt-1">
-                {formatCurrency(stats?.vendas_dia || 0)}
+                {formatSensitiveValue(stats?.vendas_dia || 0)}
               </p>
               <p className="text-sm text-green-400 mt-1">
                 <Calendar className="w-4 h-4 inline mr-1" />
@@ -134,36 +146,46 @@ export default function Dashboard() {
             <BarChart3 className="w-5 h-5 text-primary-400 mr-2" />
             <h3 className="text-lg font-semibold text-white">Vendas por Dia</h3>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={stats?.vendas_por_dia || []}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis 
-                dataKey="data" 
-                stroke="#9CA3AF"
-                fontSize={12}
-              />
-              <YAxis 
-                stroke="#9CA3AF"
-                fontSize={12}
-                tickFormatter={formatCurrency}
-              />
-              <Tooltip 
-                contentStyle={{
-                  backgroundColor: '#1f2937',
-                  border: '1px solid #374151',
-                  borderRadius: '8px'
-                }}
-                formatter={(value: number) => [formatCurrency(value), 'Vendas']}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="total" 
-                stroke="#3b82f6" 
-                strokeWidth={2}
-                dot={{ fill: '#3b82f6' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          {isAdmin ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={stats?.vendas_por_dia || []}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis 
+                  dataKey="data" 
+                  stroke="#9CA3AF"
+                  fontSize={12}
+                />
+                <YAxis 
+                  stroke="#9CA3AF"
+                  fontSize={12}
+                  tickFormatter={formatCurrency}
+                />
+                <Tooltip 
+                  contentStyle={{
+                    backgroundColor: '#1f2937',
+                    border: '1px solid #374151',
+                    borderRadius: '8px'
+                  }}
+                  formatter={(value: number) => [formatCurrency(value), 'Vendas']}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="total" 
+                  stroke="#3b82f6" 
+                  strokeWidth={2}
+                  dot={{ fill: '#3b82f6' }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-gray-400">
+              <div className="text-center">
+                <DollarSign className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium">Informações Restritas</p>
+                <p className="text-sm">Dados financeiros disponíveis apenas para administradores</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Category Chart */}
@@ -172,34 +194,44 @@ export default function Dashboard() {
             <BarChart3 className="w-5 h-5 text-green-400 mr-2" />
             <h3 className="text-lg font-semibold text-white">Vendas por Categoria</h3>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={stats?.vendas_por_categoria || []}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis 
-                dataKey="categoria" 
-                stroke="#9CA3AF"
-                fontSize={12}
-              />
-              <YAxis 
-                stroke="#9CA3AF"
-                fontSize={12}
-                tickFormatter={formatCurrency}
-              />
-              <Tooltip 
-                contentStyle={{
-                  backgroundColor: '#1f2937',
-                  border: '1px solid #374151',
-                  borderRadius: '8px'
-                }}
-                formatter={(value: number) => [formatCurrency(value), 'Vendas']}
-              />
-              <Bar 
-                dataKey="total" 
-                fill="#10b981"
-                radius={[4, 4, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
+          {isAdmin ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={stats?.vendas_por_categoria || []}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis 
+                  dataKey="categoria" 
+                  stroke="#9CA3AF"
+                  fontSize={12}
+                />
+                <YAxis 
+                  stroke="#9CA3AF"
+                  fontSize={12}
+                  tickFormatter={formatCurrency}
+                />
+                <Tooltip 
+                  contentStyle={{
+                    backgroundColor: '#1f2937',
+                    border: '1px solid #374151',
+                    borderRadius: '8px'
+                  }}
+                  formatter={(value: number) => [formatCurrency(value), 'Vendas']}
+                />
+                <Bar 
+                  dataKey="total" 
+                  fill="#10b981"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-gray-400">
+              <div className="text-center">
+                <DollarSign className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium">Informações Restritas</p>
+                <p className="text-sm">Dados financeiros disponíveis apenas para administradores</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

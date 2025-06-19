@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import toast from 'react-hot-toast'
 import { ShoppingCart, X, Search, Package, ArrowLeft, CreditCard, Calendar, Plus, Minus, Percent, DollarSign } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 
 interface Product {
   id: number
@@ -25,6 +26,7 @@ interface CartItem {
 
 export default function PDV() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
   const [allProducts, setAllProducts] = useState<Product[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
@@ -269,15 +271,19 @@ export default function PDV() {
   const printReceipt = () => {
     if (!lastSale) return
 
+    // Determinar o nome do vendedor baseado no usuário logado
+    const vendedorNome = user?.role === 'admin' ? 'MixJovim' : (user?.username || 'Sistema')
+
     const receiptContent = `
       <div style="font-family: 'Courier New', monospace; font-size: 12px; width: 300px; margin: 0 auto;">
         <div style="text-align: center; margin-bottom: 20px;">
           <h2 style="margin: 0;">MIXJOVIM</h2>
           <div style="margin: 5px 0; font-size: 10px;">
+            <div style="font-weight: bold; margin-bottom: 5px;">--- CUPOM NÃO FISCAL ---</div>
             <div>Data: ${new Date(lastSale.created_at).toLocaleDateString('pt-BR')}</div>
             <div>Hora: ${new Date(lastSale.created_at).toLocaleTimeString('pt-BR')}</div>
             <div>Tel: (41) 99484-3913</div>
-            <div>Cliente: Cliente Geral</div>
+            <div>Vendedor: ${vendedorNome}</div>
           </div>
         </div>
         
@@ -329,7 +335,7 @@ export default function PDV() {
       printWindow.document.write(`
         <html>
           <head>
-            <title>Cupom Fiscal - Venda #${lastSale.id}</title>
+            <title>Cupom Não Fiscal - Venda #${lastSale.id}</title>
             <style>
               body { margin: 0; padding: 20px; }
               @media print {
@@ -818,7 +824,7 @@ export default function PDV() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Deseja imprimir o cupom fiscal?
+                  Deseja imprimir o cupom não fiscal?
                 </label>
               </div>
 

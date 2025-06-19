@@ -152,21 +152,57 @@ router.get('/users', authenticateToken, requireAdmin, async (req: AuthRequest, r
 
     const users = userRows as any[]
     const formattedUsers = users.map((user: any) => {
-      let permissions = {}
+      let permissions = {
+        pdv: false,
+        products: false,
+        dashboard: false,
+        reports: false,
+        estoque: false,
+        funcionarios: false
+      }
+
       try {
-        permissions = user.permissions || {
-          pdv: false,
-          products: false,
-          dashboard: false,
-          reports: false
+        if (typeof user.permissions === 'string') {
+          // Primeiro, vamos tentar corrigir strings malformadas
+          let permissionsString = user.permissions
+          
+          // Se a string tem índices numéricos, extrair apenas a parte JSON válida
+          if (permissionsString.includes('"0":')) {
+            console.log('Detectada string malformada para usuário:', user.username)
+            
+            // Extrair as permissões reais do final da string
+            // Procurar por padrão: "pdv":true/false,"products":true/false, etc.
+            const permissionPattern = /"pdv":(true|false),"products":(true|false),"dashboard":(true|false),"reports":(true|false),"estoque":(true|false)/
+            const validMatch = permissionsString.match(permissionPattern)
+            
+            if (validMatch) {
+              // Extrair toda a parte das permissões válidas até o final
+              const startIndex = permissionsString.indexOf('"pdv":')
+              if (startIndex > -1) {
+                const endPart = permissionsString.substring(startIndex)
+                // Procurar pelo fechamento do JSON
+                const endIndex = endPart.lastIndexOf('}')
+                if (endIndex > -1) {
+                  permissionsString = '{' + endPart.substring(0, endIndex + 1)
+                  console.log('JSON corrigido:', permissionsString)
+                }
+              }
+            } else {
+              console.log('Não foi possível extrair permissões válidas, usando padrão')
+              // Usar permissões padrão
+              permissionsString = JSON.stringify(permissions)
+            }
+          }
+          
+          const parsedPermissions = JSON.parse(permissionsString)
+          permissions = { ...permissions, ...parsedPermissions }
+        } else if (typeof user.permissions === 'object' && user.permissions !== null) {
+          permissions = { ...permissions, ...user.permissions }
         }
       } catch (e) {
-        permissions = {
-          pdv: false,
-          products: false,
-          dashboard: false,
-          reports: false
-        }
+        console.error('Erro ao parsear permissões do usuário:', user.username, 'Error:', e)
+        console.error('Permissions raw:', user.permissions)
+        // Mantém as permissões padrão
       }
 
       return {
@@ -243,6 +279,63 @@ router.put('/users/:id', authenticateToken, requireAdmin, async (req: AuthReques
     res.json({ message: 'Usuário atualizado com sucesso' })
   } catch (error) {
     console.error('Erro ao atualizar usuário:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+// Corrigir permissões corrompidas (apenas admin)
+router.post('/fix-permissions', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const db = getDatabase()
+    
+    // Buscar todos os usuários
+    const [userRows] = await db.execute('SELECT id, username, permissions FROM users')
+    const users = userRows as any[]
+    
+    let fixedCount = 0
+    
+    for (const user of users) {
+      if (typeof user.permissions === 'string' && user.permissions.includes('"0":')) {
+        console.log(`Corrigindo permissões do usuário: ${user.username}`)
+        
+        // Extrair permissões válidas ou usar padrão
+        let cleanPermissions = {
+          pdv: false,
+          products: false,
+          dashboard: false,
+          reports: false,
+          estoque: false,
+          funcionarios: false
+        }
+        
+        // Tentar extrair valores reais se possível
+        try {
+          if (user.permissions.includes('"pdv":true')) cleanPermissions.pdv = true
+          if (user.permissions.includes('"products":true')) cleanPermissions.products = true
+          if (user.permissions.includes('"dashboard":true')) cleanPermissions.dashboard = true
+          if (user.permissions.includes('"reports":true')) cleanPermissions.reports = true
+          if (user.permissions.includes('"estoque":true')) cleanPermissions.estoque = true
+          if (user.permissions.includes('"funcionarios":true')) cleanPermissions.funcionarios = true
+        } catch (e) {
+          console.log('Usando permissões padrão para:', user.username)
+        }
+        
+        // Atualizar no banco
+        await db.execute(
+          'UPDATE users SET permissions = ? WHERE id = ?',
+          [JSON.stringify(cleanPermissions), user.id]
+        )
+        
+        fixedCount++
+      }
+    }
+    
+    res.json({ 
+      message: `Permissões corrigidas para ${fixedCount} usuários`,
+      fixedCount 
+    })
+  } catch (error) {
+    console.error('Erro ao corrigir permissões:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })

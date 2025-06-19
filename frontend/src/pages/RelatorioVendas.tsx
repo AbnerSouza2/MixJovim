@@ -1,11 +1,13 @@
 import React, { useState } from 'react'
 import api from '../services/api'
+import { useAuth } from '../contexts/AuthContext'
 import toast from 'react-hot-toast'
 import { 
   FileText, 
   Calendar,
   Download,
-  Eye
+  Eye,
+  Lock
 } from 'lucide-react'
 
 interface ResumoCategoria {
@@ -35,6 +37,7 @@ interface ReportData {
 }
 
 export default function RelatorioVendas() {
+  const { user } = useAuth()
   const [startDate, setStartDate] = useState(() => {
     const today = new Date()
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -48,6 +51,8 @@ export default function RelatorioVendas() {
   
   const [loading, setLoading] = useState(false)
   const [reportData, setReportData] = useState<ReportData | null>(null)
+  
+  const isAdmin = user?.role === 'admin'
 
   const generateReport = async () => {
     if (!startDate || !endDate) {
@@ -269,6 +274,28 @@ export default function RelatorioVendas() {
         printWindow.print()
       }
     }
+  }
+
+  // Se não for admin, mostrar tela de acesso restrito
+  if (!isAdmin) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center max-w-md">
+          <div className="mb-6">
+            <Lock className="w-24 h-24 mx-auto text-gray-600 mb-4" />
+            <h2 className="text-2xl font-bold text-white mb-2">Acesso Restrito</h2>
+            <p className="text-gray-400">
+              Este relatório contém informações financeiras sensíveis e está disponível apenas para administradores.
+            </p>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <p className="text-sm text-gray-300">
+              <strong>Motivo:</strong> Proteção de dados comerciais confidenciais
+            </p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

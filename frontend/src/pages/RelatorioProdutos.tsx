@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import api from '../services/api'
+import { useAuth } from '../contexts/AuthContext'
 import toast from 'react-hot-toast'
 import { 
   Package, 
@@ -17,12 +18,20 @@ interface Product {
   categoria: string
   codigo_barras_1?: string
   codigo_barras_2?: string
+  total_conferido?: number
+  total_perdas?: number
+  total_vendido?: number
+  quantidade_real_estoque?: number
+  quantidade_disponivel?: number
 }
 
 export default function RelatorioProdutos() {
+  const { user } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  
+  const isAdmin = user?.role === 'admin'
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [stockFilter, setStockFilter] = useState('all')
@@ -43,7 +52,12 @@ export default function RelatorioProdutos() {
         ...product,
         valor_unitario: Number(product.valor_unitario) || 0,
         valor_venda: Number(product.valor_venda) || 0,
-        quantidade: Number(product.quantidade) || 0
+        quantidade: Number(product.quantidade) || 0,
+        total_conferido: Number(product.total_conferido) || 0,
+        total_perdas: Number(product.total_perdas) || 0,
+        total_vendido: Number(product.total_vendido) || 0,
+        quantidade_real_estoque: Number(product.quantidade_real_estoque) || 0,
+        quantidade_disponivel: Number(product.quantidade_disponivel) || 0
       }))
       setProducts(productsWithNumbers)
     } catch (error: any) {
@@ -71,13 +85,13 @@ export default function RelatorioProdutos() {
       filtered = filtered.filter(product => product.categoria === categoryFilter)
     }
 
-    // Filtro por estoque
+    // Filtro por estoque (usando quantidade disponível)
     if (stockFilter === 'low') {
-      filtered = filtered.filter(product => product.quantidade <= 5)
+      filtered = filtered.filter(product => (product.quantidade_disponivel || 0) <= 5 && (product.quantidade_disponivel || 0) > 0)
     } else if (stockFilter === 'zero') {
-      filtered = filtered.filter(product => product.quantidade === 0)
+      filtered = filtered.filter(product => (product.quantidade_disponivel || 0) === 0)
     } else if (stockFilter === 'available') {
-      filtered = filtered.filter(product => product.quantidade > 0)
+      filtered = filtered.filter(product => (product.quantidade_disponivel || 0) > 0)
     }
 
     setFilteredProducts(filtered)
@@ -90,12 +104,22 @@ export default function RelatorioProdutos() {
 
   const getStockSummary = () => {
     const total = products.length
-    const withStock = products.filter(p => p.quantidade > 0).length
-    const lowStock = products.filter(p => p.quantidade <= 5 && p.quantidade > 0).length
-    const zeroStock = products.filter(p => p.quantidade === 0).length
-    const totalValue = products.reduce((sum, p) => sum + (p.quantidade * p.valor_venda), 0)
+    const withStock = products.filter(p => (p.quantidade_disponivel || 0) > 0).length
+    const lowStock = products.filter(p => (p.quantidade_disponivel || 0) <= 5 && (p.quantidade_disponivel || 0) > 0).length
+    const zeroStock = products.filter(p => (p.quantidade_disponivel || 0) === 0).length
+    const totalValue = products.reduce((sum, p) => sum + ((p.quantidade_disponivel || 0) * p.valor_venda), 0)
 
     return { total, withStock, lowStock, zeroStock, totalValue }
+  }
+
+  // Função para mascarar valores sensíveis para funcionários
+  const formatSensitiveValue = (value: number, type: 'currency' | 'number' = 'currency') => {
+    if (!isAdmin) {
+      return type === 'currency' ? 'R$ ***' : '***'
+    }
+    return type === 'currency' ? 
+      `R$ ${value.toFixed(2).replace('.', ',')}` : 
+      value.toString()
   }
 
   const generatePDF = () => {
@@ -248,17 +272,20 @@ export default function RelatorioProdutos() {
               <table>
                 <thead>
                   <tr>
-                    <th style="width: 40%">Produto</th>
-                    <th style="width: 15%">Categoria</th>
-                    <th class="text-center" style="width: 10%">Estoque</th>
-                    <th class="text-right" style="width: 15%">Valor Unitário</th>
-                    <th class="text-right" style="width: 15%">Valor Venda</th>
-                    <th class="text-right" style="width: 15%">Valor Total</th>
+                    <th style="width: 30%">Produto</th>
+                    <th style="width: 12%">Categoria</th>
+                    <th class="text-center" style="width: 8%">Orig.</th>
+                    <th class="text-center" style="width: 8%">Conf.</th>
+                    <th class="text-center" style="width: 8%">Vend.</th>
+                    <th class="text-center" style="width: 8%">Perd.</th>
+                    <th class="text-center" style="width: 8%">Disp.</th>
+                    <th class="text-right" style="width: 12%">Valor Unit.</th>
+                    <th class="text-right" style="width: 12%">Valor Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${filteredProducts.map(produto => `
-                    <tr class="${produto.quantidade === 0 ? 'zero-stock' : produto.quantidade <= 5 ? 'low-stock' : ''}">
+                    <tr class="${(produto.quantidade_disponivel || 0) === 0 ? 'zero-stock' : (produto.quantidade_disponivel || 0) <= 5 ? 'low-stock' : ''}">
                       <td>
                         <strong>${produto.descricao}</strong>
                         ${produto.codigo_barras_1 || produto.codigo_barras_2 ? 
@@ -268,9 +295,12 @@ export default function RelatorioProdutos() {
                       </td>
                       <td>${produto.categoria}</td>
                       <td class="text-center">${produto.quantidade}</td>
-                      <td class="text-right">${formatCurrency(produto.valor_unitario)}</td>
+                      <td class="text-center">${produto.total_conferido || 0}</td>
+                      <td class="text-center">${produto.total_vendido || 0}</td>
+                      <td class="text-center">${produto.total_perdas || 0}</td>
+                      <td class="text-center"><strong>${produto.quantidade_disponivel || 0}</strong></td>
                       <td class="text-right">${formatCurrency(produto.valor_venda)}</td>
-                      <td class="text-right">${formatCurrency(produto.quantidade * produto.valor_venda)}</td>
+                      <td class="text-right">${formatCurrency((produto.quantidade_disponivel || 0) * produto.valor_venda)}</td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -301,13 +331,15 @@ export default function RelatorioProdutos() {
           <Package className="w-8 h-8 mr-3 text-mixjovim-gold" />
           Relatório de Produtos
         </h1>
-        <button
-          onClick={generatePDF}
-          className="btn-gold flex items-center"
-        >
-          <Download className="w-4 h-4 mr-2" />
-          Baixar PDF
-        </button>
+        {isAdmin && (
+          <button
+            onClick={generatePDF}
+            className="btn-gold flex items-center"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Baixar PDF
+          </button>
+        )}
       </div>
 
       {/* Resumo */}
@@ -336,10 +368,15 @@ export default function RelatorioProdutos() {
       {/* Valor Total do Estoque */}
       <div className="bg-gray-900 rounded-lg p-6 border border-gray-800">
         <div className="text-center">
-          <div className="text-sm text-gray-400">Valor Total do Estoque</div>
-          <div className="text-3xl font-bold text-mixjovim-gold">
-            R$ {summary.totalValue.toFixed(2)}
+          <div className="text-sm text-gray-400 mb-2">Valor Total do Estoque Conferido</div>
+          <div className="text-3xl font-bold text-mixjovim-gold whitespace-nowrap">
+            {formatSensitiveValue(summary.totalValue)}
           </div>
+          {!isAdmin && (
+            <div className="text-xs text-gray-500 mt-2">
+              Informação restrita para administradores
+            </div>
+          )}
         </div>
       </div>
 
@@ -433,26 +470,35 @@ export default function RelatorioProdutos() {
             <p className="text-gray-400">Nenhum produto encontrado</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto scrollbar-custom">
+            <table className="w-full min-w-[1200px]">
               <thead className="bg-gray-800">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
                     Produto
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase">
                     Categoria
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase">
-                    Estoque
+                  <th className="px-2 py-3 text-center text-xs font-medium text-gray-300 uppercase">
+                    Orig.
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase">
-                    Valor Unitário
+                  <th className="px-2 py-3 text-center text-xs font-medium text-gray-300 uppercase">
+                    Conf.
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase">
-                    Valor Venda
+                  <th className="px-2 py-3 text-center text-xs font-medium text-gray-300 uppercase">
+                    Vend.
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase">
+                  <th className="px-2 py-3 text-center text-xs font-medium text-gray-300 uppercase">
+                    Perd.
+                  </th>
+                  <th className="px-2 py-3 text-center text-xs font-medium text-gray-300 uppercase">
+                    Disp.
+                  </th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-300 uppercase">
+                    Valor Unit.
+                  </th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-300 uppercase">
                     Valor Total
                   </th>
                 </tr>
@@ -462,11 +508,11 @@ export default function RelatorioProdutos() {
                   <tr 
                     key={product.id} 
                     className={`hover:bg-gray-800 transition-colors ${
-                      product.quantidade === 0 ? 'bg-red-900/20' : 
-                      product.quantidade <= 5 ? 'bg-yellow-900/20' : ''
+                      (product.quantidade_disponivel || 0) === 0 ? 'bg-red-900/20' : 
+                      (product.quantidade_disponivel || 0) <= 5 ? 'bg-yellow-900/20' : ''
                     }`}
                   >
-                    <td className="px-6 py-4 text-sm">
+                    <td className="px-4 py-4 text-sm">
                       <div className="text-white font-medium">{product.descricao}</div>
                       {(product.codigo_barras_1 || product.codigo_barras_2) && (
                         <div className="text-xs text-gray-400">
@@ -474,26 +520,35 @@ export default function RelatorioProdutos() {
                         </div>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-300">
+                    <td className="px-3 py-4 text-sm text-gray-300">
                       {product.categoria}
                     </td>
-                    <td className="px-6 py-4 text-sm text-center">
+                    <td className="px-2 py-4 text-sm text-center text-gray-400">
+                      {product.quantidade}
+                    </td>
+                    <td className="px-2 py-4 text-sm text-center text-green-400">
+                      {product.total_conferido || 0}
+                    </td>
+                    <td className="px-2 py-4 text-sm text-center text-blue-400">
+                      {product.total_vendido || 0}
+                    </td>
+                    <td className="px-2 py-4 text-sm text-center text-red-400">
+                      {product.total_perdas || 0}
+                    </td>
+                    <td className="px-2 py-4 text-sm text-center">
                       <span className={`font-bold ${
-                        product.quantidade === 0 ? 'text-red-400' :
-                        product.quantidade <= 5 ? 'text-yellow-400' :
+                        (product.quantidade_disponivel || 0) === 0 ? 'text-red-400' :
+                        (product.quantidade_disponivel || 0) <= 5 ? 'text-yellow-400' :
                         'text-green-400'
                       }`}>
-                        {product.quantidade}
+                        {product.quantidade_disponivel || 0}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-300 text-right">
-                      R$ {product.valor_unitario.toFixed(2)}
+                    <td className="px-3 py-4 text-sm text-gray-300 text-right whitespace-nowrap">
+                      {formatSensitiveValue(product.valor_venda)}
                     </td>
-                    <td className="px-6 py-4 text-sm font-bold text-green-400 text-right">
-                      R$ {product.valor_venda.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-bold text-mixjovim-gold text-right">
-                      R$ {(product.quantidade * product.valor_venda).toFixed(2)}
+                    <td className="px-3 py-4 text-sm font-bold text-mixjovim-gold text-right whitespace-nowrap">
+                      {formatSensitiveValue((product.quantidade_disponivel || 0) * product.valor_venda)}
                     </td>
                   </tr>
                 ))}

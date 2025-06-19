@@ -12,13 +12,28 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 })
 
-// Rota específica para PDV - retorna todos os produtos em array simples
+// Rota específica para relatórios - retorna todos os produtos com dados de estoque real
 router.get('/all', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const db = getDatabase()
-    const [productRows] = await db.execute(
-      'SELECT * FROM products ORDER BY descricao ASC'
-    )
+    const [productRows] = await db.execute(`
+      SELECT 
+        p.*,
+        COALESCE(SUM(CASE WHEN e.tipo = 'conferido' THEN e.quantidade ELSE 0 END), 0) as total_conferido,
+        COALESCE(SUM(CASE WHEN e.tipo = 'perda' THEN e.quantidade ELSE 0 END), 0) as total_perdas,
+        COALESCE(pv.quantidade_vendida, 0) as total_vendido,
+        (p.quantidade - 
+         COALESCE(SUM(CASE WHEN e.tipo = 'conferido' THEN e.quantidade ELSE 0 END), 0) - 
+         COALESCE(SUM(CASE WHEN e.tipo = 'perda' THEN e.quantidade ELSE 0 END), 0) - 
+         COALESCE(pv.quantidade_vendida, 0)) as quantidade_real_estoque,
+        (COALESCE(SUM(CASE WHEN e.tipo = 'conferido' THEN e.quantidade ELSE 0 END), 0) -
+         COALESCE(pv.quantidade_vendida, 0)) as quantidade_disponivel
+      FROM products p
+      LEFT JOIN estoque e ON p.id = e.produto_id
+      LEFT JOIN produto_vendas pv ON p.id = pv.produto_id
+      GROUP BY p.id, p.descricao, p.quantidade, p.valor_unitario, p.valor_venda, p.categoria, p.codigo_barras_1, p.codigo_barras_2, p.created_at, p.updated_at, pv.quantidade_vendida
+      ORDER BY p.descricao ASC
+    `)
     
     res.json(productRows)
   } catch (error) {
