@@ -6,7 +6,8 @@ import {
   Package, 
   Search,
   Download,
-  Filter
+  Filter,
+  Lock
 } from 'lucide-react'
 
 interface Product {
@@ -32,6 +33,8 @@ export default function RelatorioProdutos() {
   const [loading, setLoading] = useState(true)
   
   const isAdmin = user?.role === 'admin'
+  const isManager = user?.role === 'gerente'
+  const canViewValues = isAdmin || isManager
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [stockFilter, setStockFilter] = useState('all')
@@ -114,7 +117,7 @@ export default function RelatorioProdutos() {
 
   // Função para mascarar valores sensíveis para funcionários
   const formatSensitiveValue = (value: number, type: 'currency' | 'number' = 'currency') => {
-    if (!isAdmin) {
+    if (!canViewValues) {
       return type === 'currency' ? 'R$ ***' : '***'
     }
     return type === 'currency' ? 
@@ -323,6 +326,28 @@ export default function RelatorioProdutos() {
 
   const summary = getStockSummary()
 
+  // Se não for admin nem gerente, mostrar tela de acesso restrito
+  if (!canViewValues) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center max-w-md">
+          <div className="mb-6">
+            <Lock className="w-24 h-24 mx-auto text-gray-600 mb-4" />
+            <h2 className="text-2xl font-bold text-white mb-2">Acesso Restrito</h2>
+            <p className="text-gray-400">
+              Este relatório contém informações financeiras sensíveis e está disponível apenas para administradores e gerentes.
+            </p>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <p className="text-sm text-gray-300">
+              <strong>Motivo:</strong> Proteção de dados comerciais confidenciais
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -331,7 +356,7 @@ export default function RelatorioProdutos() {
           <Package className="w-8 h-8 mr-3 text-mixjovim-gold" />
           Relatório de Produtos
         </h1>
-        {isAdmin && (
+        {canViewValues && (
           <button
             onClick={generatePDF}
             className="btn-gold flex items-center"
@@ -372,9 +397,9 @@ export default function RelatorioProdutos() {
           <div className="text-3xl font-bold text-mixjovim-gold whitespace-nowrap">
             {formatSensitiveValue(summary.totalValue)}
           </div>
-          {!isAdmin && (
+          {!canViewValues && (
             <div className="text-xs text-gray-500 mt-2">
-              Informação restrita para administradores
+              Informação restrita para administradores e gerentes
             </div>
           )}
         </div>

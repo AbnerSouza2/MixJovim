@@ -10,10 +10,16 @@ import {
   Lock
 } from 'lucide-react'
 
-interface ResumoCategoria {
+interface ProdutoVendido {
+  produto_nome: string
   categoria: string
-  total_categoria: number
-  vendas_categoria: number
+  quantidade: number
+  valor_unitario: number
+  subtotal: number
+  venda_id: number
+  data_venda: string
+  hora_venda: string
+  vendedor_nome: string
 }
 
 interface VendaPorDia {
@@ -32,8 +38,8 @@ interface ReportData {
     total_periodo: number
     total_vendas: number
   }
-  resumo_por_categoria: ResumoCategoria[]
   vendas_por_dia: VendaPorDia[]
+  produtos_vendidos: ProdutoVendido[]
 }
 
 export default function RelatorioVendas() {
@@ -53,6 +59,8 @@ export default function RelatorioVendas() {
   const [reportData, setReportData] = useState<ReportData | null>(null)
   
   const isAdmin = user?.role === 'admin'
+  const isManager = user?.role === 'gerente'
+  const canViewValues = isAdmin || isManager
 
   const generateReport = async () => {
     if (!startDate || !endDate) {
@@ -146,6 +154,9 @@ export default function RelatorioVendas() {
               padding: 5px 0;
               border-bottom: 1px dotted #ccc;
             }
+            .summary-item span {
+              white-space: nowrap;
+            }
             .summary-item:last-child {
               border-bottom: none;
               font-weight: bold;
@@ -166,11 +177,14 @@ export default function RelatorioVendas() {
               border-collapse: collapse;
               margin-bottom: 15px;
               font-size: 11px;
+              table-layout: fixed;
             }
             th, td {
               border: 1px solid #ddd;
               padding: 8px;
               text-align: left;
+              white-space: nowrap;
+              vertical-align: top;
             }
             th {
               background: #f8f9fa;
@@ -178,9 +192,11 @@ export default function RelatorioVendas() {
             }
             .text-right {
               text-align: right;
+              white-space: nowrap;
             }
             .text-center {
               text-align: center;
+              white-space: nowrap;
             }
             .no-data {
               text-align: center;
@@ -192,12 +208,26 @@ export default function RelatorioVendas() {
               background: #e8f4f8;
               font-weight: bold;
             }
+            .col-produto { 
+              width: 30%; 
+              white-space: normal !important;
+              word-wrap: break-word;
+              line-height: 1.2;
+              padding: 8px 6px !important;
+              vertical-align: top;
+            }
+            .col-qtd { width: 8%; }
+            .col-valor { width: 12%; min-width: 80px; }
+            .col-subtotal { width: 12%; min-width: 80px; }
+            .col-data { width: 12%; }
+            .col-hora { width: 10%; }
+            .col-vendedor { width: 16%; }
           </style>
         </head>
         <body>
           <div class="header">
             <div class="company-name">MIXJOVIM</div>
-            <div class="report-title">RELATÓRIO DE VENDAS POR CATEGORIA</div>
+            <div class="report-title">RELATÓRIO DE VENDAS</div>
             <div class="period">Período: ${formatDate(reportData.periodo.startDate)} a ${formatDate(reportData.periodo.endDate)}</div>
           </div>
 
@@ -218,21 +248,29 @@ export default function RelatorioVendas() {
           </div>
 
           <div class="summary">
-            <h3>Resumo por Categoria</h3>
+            <h3>Produtos Vendidos no Período</h3>
             <table>
               <thead>
                 <tr class="categoria-header">
-                  <th>Categoria</th>
-                  <th class="text-center">Itens Vendidos</th>
-                  <th class="text-right">Faturamento</th>
+                  <th class="col-produto">Produto</th>
+                  <th class="col-qtd text-center">Qtd</th>
+                  <th class="col-valor text-right">Valor Unit.</th>
+                  <th class="col-subtotal text-right">Subtotal</th>
+                  <th class="col-data text-center">Data</th>
+                  <th class="col-hora text-center">Hora</th>
+                  <th class="col-vendedor">Vendedor</th>
                 </tr>
               </thead>
               <tbody>
-                ${reportData.resumo_por_categoria.map(categoria => `
+                ${reportData.produtos_vendidos.map(produto => `
                   <tr>
-                    <td>${categoria.categoria}</td>
-                    <td class="text-center">${categoria.vendas_categoria}</td>
-                    <td class="text-right">${formatCurrency(Number(categoria.total_categoria || 0))}</td>
+                    <td class="col-produto">${produto.produto_nome}</td>
+                    <td class="col-qtd text-center">${produto.quantidade}</td>
+                    <td class="col-valor text-right">${formatCurrency(Number(produto.valor_unitario || 0))}</td>
+                    <td class="col-subtotal text-right">${formatCurrency(Number(produto.subtotal || 0))}</td>
+                    <td class="col-data text-center">${formatDate(produto.data_venda)}</td>
+                    <td class="col-hora text-center">${produto.hora_venda}</td>
+                    <td class="col-vendedor">${produto.vendedor_nome}</td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -276,8 +314,8 @@ export default function RelatorioVendas() {
     }
   }
 
-  // Se não for admin, mostrar tela de acesso restrito
-  if (!isAdmin) {
+  // Se não for admin nem gerente, mostrar tela de acesso restrito
+  if (!canViewValues) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center max-w-md">
@@ -285,7 +323,7 @@ export default function RelatorioVendas() {
             <Lock className="w-24 h-24 mx-auto text-gray-600 mb-4" />
             <h2 className="text-2xl font-bold text-white mb-2">Acesso Restrito</h2>
             <p className="text-gray-400">
-              Este relatório contém informações financeiras sensíveis e está disponível apenas para administradores.
+              Este relatório contém informações financeiras sensíveis e está disponível apenas para administradores e gerentes.
             </p>
           </div>
           <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
@@ -405,39 +443,63 @@ export default function RelatorioVendas() {
             </div>
           </div>
 
-          {/* Resumo por Categoria */}
+          {/* Produtos Vendidos */}
           <div className="bg-gray-900 rounded-lg border border-gray-800 overflow-hidden">
             <div className="p-6 border-b border-gray-800">
-              <h2 className="text-lg font-semibold text-white">Resumo por Categoria</h2>
+              <h2 className="text-lg font-semibold text-white">Produtos Vendidos no Período</h2>
             </div>
             
-            {reportData.resumo_por_categoria.length > 0 ? (
-              <div className="overflow-x-auto">
+            {reportData.produtos_vendidos.length > 0 ? (
+              <div className="overflow-x-auto scrollbar-custom">
                 <table className="w-full">
                   <thead className="bg-gray-800">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">
-                        Categoria
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                        Produto
                       </th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase">
-                        Itens Vendidos
+                        Qtd
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase">
-                        Faturamento
+                        Valor Unit.
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase">
+                        Subtotal
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase">
+                        Data
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase">
+                        Hora
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                        Vendedor
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800">
-                    {reportData.resumo_por_categoria.map((categoria, index) => (
+                    {reportData.produtos_vendidos.map((produto, index) => (
                       <tr key={index} className="hover:bg-gray-800">
-                        <td className="px-6 py-4 text-sm text-white font-medium">
-                          {categoria.categoria}
+                        <td className="px-4 py-4 text-sm text-white font-medium">
+                          {produto.produto_nome}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-300 text-center">
-                          {categoria.vendas_categoria}
+                          {produto.quantidade}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-300 text-right">
+                          R$ {Number(produto.valor_unitario || 0).toFixed(2)}
                         </td>
                         <td className="px-6 py-4 text-sm font-bold text-green-400 text-right">
-                          R$ {Number(categoria.total_categoria || 0).toFixed(2)}
+                          R$ {Number(produto.subtotal || 0).toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-300 text-center">
+                          {new Date(produto.data_venda).toLocaleDateString('pt-BR')}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-300 text-center">
+                          {produto.hora_venda}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-white font-medium">
+                          {produto.vendedor_nome}
                         </td>
                       </tr>
                     ))}
@@ -447,7 +509,7 @@ export default function RelatorioVendas() {
             ) : (
               <div className="p-8 text-center">
                 <FileText className="w-12 h-12 mx-auto text-gray-600 mb-4" />
-                <p className="text-gray-400">Nenhuma venda por categoria encontrada</p>
+                <p className="text-gray-400">Nenhum produto vendido encontrado</p>
               </div>
             )}
           </div>
@@ -459,7 +521,7 @@ export default function RelatorioVendas() {
             </div>
             
             {reportData.vendas_por_dia.length > 0 ? (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto scrollbar-custom">
                 <table className="w-full">
                   <thead className="bg-gray-800">
                     <tr>

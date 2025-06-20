@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import api from '../services/api'
 import toast from 'react-hot-toast'
-import { Users, UserPlus, Edit2, Trash2, Eye, EyeOff, Shield, X } from 'lucide-react'
+import { Users, UserPlus, Edit2, Trash2, Eye, EyeOff, Shield, X, Lock } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 
 interface User {
   id: number
@@ -14,6 +15,7 @@ interface User {
     reports: boolean
     estoque: boolean
     funcionarios: boolean
+    financeiro: boolean
   }
 }
 
@@ -28,10 +30,12 @@ interface NewUser {
     reports: boolean
     estoque: boolean
     funcionarios: boolean
+    financeiro: boolean
   }
 }
 
 export default function Funcionarios() {
+  const { user } = useAuth()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
@@ -44,10 +48,11 @@ export default function Funcionarios() {
     permissions: {
       pdv: false,
       products: false,
-      dashboard: false,
+      dashboard: true, // Dashboard obrigatório para todos
       reports: false,
       estoque: false,
-      funcionarios: false
+      funcionarios: false,
+      financeiro: false
     }
   })
 
@@ -58,7 +63,9 @@ export default function Funcionarios() {
   const loadUsers = async () => {
     try {
       setLoading(true)
+      console.log('🔄 Carregando usuários...')
       const response = await api.get('/auth/users')
+      console.log('📋 Usuários recebidos:', response.data)
       setUsers(response.data)
     } catch (error) {
       console.error('Erro ao carregar usuários:', error)
@@ -93,10 +100,13 @@ export default function Funcionarios() {
           ...(newUser.password.trim() && { password: newUser.password })
         }
         
+        console.log('🔄 Enviando dados para atualização:', updateData)
+        
         await api.put(`/auth/users/${editingUser.id}`, updateData)
         toast.success('Usuário atualizado com sucesso!')
       } else {
         // Criar novo usuário
+        console.log('🆕 Enviando dados para criação:', newUser)
         await api.post('/auth/users', newUser)
         toast.success('Usuário criado com sucesso!')
       }
@@ -104,7 +114,8 @@ export default function Funcionarios() {
       setShowModal(false)
       setEditingUser(null)
       resetForm()
-      loadUsers()
+      // Recarregar a lista para mostrar as mudanças
+      await loadUsers()
     } catch (error: any) {
       console.error('Erro ao salvar usuário:', error)
       toast.error(error.response?.data?.message || 'Erro ao salvar usuário')
@@ -119,13 +130,17 @@ export default function Funcionarios() {
       username: user.username,
       password: '',
       role: user.role,
-      permissions: user.permissions || {
+      permissions: {
+        ...user.permissions,
+        dashboard: true // Dashboard obrigatório para todos
+      } || {
         pdv: false,
         products: false,
-        dashboard: false,
+        dashboard: true, // Dashboard obrigatório para todos
         reports: false,
         estoque: false,
-        funcionarios: false
+        funcionarios: false,
+        financeiro: false
       }
     })
     setShowModal(true)
@@ -157,16 +172,15 @@ export default function Funcionarios() {
       permissions: {
         pdv: false,
         products: false,
-        dashboard: false,
+        dashboard: true, // Dashboard obrigatório para todos
         reports: false,
         estoque: false,
-        funcionarios: false
+        funcionarios: false,
+        financeiro: false
       }
     })
     setShowPassword(false)
   }
-
-
 
   const openModal = () => {
     resetForm()
@@ -190,10 +204,64 @@ export default function Funcionarios() {
     }))
   }
 
+  // Função para configurar permissões padrão baseadas no role
+  const handleRoleChange = (role: string) => {
+    let defaultPermissions = {
+      pdv: false,
+      products: false,
+      dashboard: true, // Dashboard obrigatório para todos
+      reports: false,
+      estoque: false,
+      funcionarios: false,
+      financeiro: false
+    }
+
+    // Configurar permissões padrão baseadas no role
+    if (role === 'gerente') {
+      defaultPermissions = {
+        pdv: true,
+        products: true,
+        dashboard: true, // Dashboard obrigatório
+        reports: true,
+        estoque: true,
+        funcionarios: false, // Gerente pode ou não ter acesso a funcionários
+        financeiro: true // Gerente tem acesso ao financeiro por padrão
+      }
+    } else if (role === 'admin') {
+      defaultPermissions = {
+        pdv: true,
+        products: true,
+        dashboard: true, // Dashboard obrigatório
+        reports: true,
+        estoque: true,
+        funcionarios: true,
+        financeiro: true
+      }
+    } else if (role === 'funcionario') {
+      defaultPermissions = {
+        pdv: true, // Funcionário tem PDV por padrão
+        products: false,
+        dashboard: true, // Dashboard obrigatório para todos
+        reports: false,
+        estoque: false,
+        funcionarios: false,
+        financeiro: false
+      }
+    }
+
+    setNewUser(prev => ({
+      ...prev,
+      role,
+      permissions: defaultPermissions
+    }))
+  }
+
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'admin':
         return 'bg-red-600 text-white'
+      case 'gerente':
+        return 'bg-mixjovim-gold text-gray-900'
       case 'funcionario':
         return 'bg-blue-600 text-white'
       default:
@@ -210,7 +278,8 @@ export default function Funcionarios() {
       dashboard: 'Dashboard',
       reports: 'Relatórios',
       estoque: 'Estoque',
-      funcionarios: 'Funcionários'
+      funcionarios: 'Funcionários',
+      financeiro: 'Financeiro'
     }
     
     const badges: string[] = []
@@ -222,6 +291,70 @@ export default function Funcionarios() {
     })
     
     return badges
+  }
+
+  const canEditUser = (targetUser: User) => {
+    const currentUser = user // usuário logado
+    
+    // Admin pode editar qualquer um
+    if (currentUser?.role === 'admin') {
+      return true
+    }
+    
+    // Gerente não pode editar admin
+    if (currentUser?.role === 'gerente' && targetUser.role === 'admin') {
+      return false
+    }
+    
+    // Gerente pode editar funcionários
+    if (currentUser?.role === 'gerente' && targetUser.role === 'funcionario') {
+      return true
+    }
+    
+    return false
+  }
+
+  const canDeleteUser = (targetUser: User) => {
+    const currentUser = user // usuário logado
+    
+    // Admin pode deletar qualquer um (exceto ele mesmo)
+    if (currentUser?.role === 'admin' && targetUser.id !== currentUser.id) {
+      return true
+    }
+    
+    // Gerente não pode deletar admin
+    if (currentUser?.role === 'gerente' && targetUser.role === 'admin') {
+      return false
+    }
+    
+    // Gerente pode deletar funcionários
+    if (currentUser?.role === 'gerente' && targetUser.role === 'funcionario') {
+      return true
+    }
+    
+    return false
+  }
+
+  // Se não for admin nem gerente, mostrar tela de acesso restrito
+  if (user?.role === 'funcionario') {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center max-w-md">
+          <div className="mb-6">
+            <Lock className="w-24 h-24 mx-auto text-gray-600 mb-4" />
+            <h2 className="text-2xl font-bold text-white mb-2">Acesso Restrito</h2>
+            <p className="text-gray-400">
+              A gestão de funcionários é restrita apenas para administradores e gerentes.
+            </p>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <p className="text-sm text-gray-300">
+              <strong>Motivo:</strong> Proteção de dados pessoais e organizacionais
+            </p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -247,7 +380,7 @@ export default function Funcionarios() {
 
       {/* Lista de usuários */}
       <div className="bg-gray-900 rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto scrollbar-custom">
           <table className="min-w-full divide-y divide-gray-700">
             <thead className="bg-gray-800">
               <tr>
@@ -297,7 +430,7 @@ export default function Funcionarios() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getRoleColor(user.role)}`}>
-                        {user.role === 'admin' ? 'Administrador' : 'Funcionário'}
+                        {user.role === 'admin' ? 'Administrador' : user.role === 'gerente' ? 'Gerente' : 'Funcionário'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -316,21 +449,26 @@ export default function Funcionarios() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end space-x-2">
-                        <button
-                          onClick={() => handleEdit(user)}
-                          className="text-blue-400 hover:text-blue-300"
-                          title="Editar"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        {user.role !== 'admin' && (
+                      <div className="flex items-center justify-end space-x-2">
+                        {/* Botão Editar - apenas se for permitido */}
+                        {canEditUser(user) && (
+                          <button
+                            onClick={() => handleEdit(user)}
+                            className="text-blue-400 hover:text-blue-300 transition-colors"
+                            title="Editar usuário"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                        )}
+                        
+                        {/* Botão Deletar - apenas se for permitido */}
+                        {canDeleteUser(user) && (
                           <button
                             onClick={() => handleDelete(user.id)}
-                            className="text-red-400 hover:text-red-300"
-                            title="Excluir"
+                            className="text-red-400 hover:text-red-300 transition-colors"
+                            title="Deletar usuário"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         )}
                       </div>
@@ -403,12 +541,38 @@ export default function Funcionarios() {
                 </label>
                 <select
                   value={newUser.role}
-                  onChange={(e) => setNewUser(prev => ({ ...prev, role: e.target.value }))}
+                  onChange={(e) => {
+                    // Se estiver editando, apenas mudar o role sem alterar permissões
+                    if (editingUser) {
+                      setNewUser(prev => ({ ...prev, role: e.target.value }))
+                    } else {
+                      // Se estiver criando novo, aplicar permissões padrão
+                      handleRoleChange(e.target.value)
+                    }
+                  }}
                   className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-mixjovim-gold"
                 >
                   <option value="funcionario">Funcionário</option>
+                  <option value="gerente">Gerente</option>
                   <option value="admin">Administrador</option>
                 </select>
+                
+                {/* Dica sobre permissões automáticas */}
+                {newUser.role === 'gerente' && (
+                  <div className="mt-2 p-3 bg-mixjovim-gold/10 border border-mixjovim-gold/30 rounded-lg">
+                    <p className="text-xs text-mixjovim-gold">
+                      <strong>Gerentes têm acesso automático a:</strong> Dashboard, Produtos, PDV, Estoque, Relatórios e Financeiro (incluindo visualização de valores)
+                    </p>
+                  </div>
+                )}
+                
+                {newUser.role === 'admin' && (
+                  <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                    <p className="text-xs text-red-400">
+                      <strong>Administradores têm acesso total</strong> a todas as funcionalidades do sistema
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -416,7 +580,7 @@ export default function Funcionarios() {
                   <Shield className="w-4 h-4 inline mr-1" />
                   Permissões
                 </label>
-                <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                   <label className="flex items-center">
                     <input
                       type="checkbox"
@@ -424,8 +588,9 @@ export default function Funcionarios() {
                       onChange={() => handlePermissionChange('pdv')}
                       className="mr-3 text-mixjovim-gold focus:ring-mixjovim-gold"
                     />
-                    <span className="text-white">Acesso ao PDV</span>
+                    <span className="text-white text-sm">Acesso ao PDV</span>
                   </label>
+                  
                   <label className="flex items-center">
                     <input
                       type="checkbox"
@@ -433,17 +598,9 @@ export default function Funcionarios() {
                       onChange={() => handlePermissionChange('products')}
                       className="mr-3 text-mixjovim-gold focus:ring-mixjovim-gold"
                     />
-                    <span className="text-white">Gerenciar Produtos</span>
+                    <span className="text-white text-sm">Gerenciar Produtos</span>
                   </label>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={newUser.permissions.dashboard}
-                      onChange={() => handlePermissionChange('dashboard')}
-                      className="mr-3 text-mixjovim-gold focus:ring-mixjovim-gold"
-                    />
-                    <span className="text-white">Acesso ao Dashboard</span>
-                  </label>
+                  
                   <label className="flex items-center">
                     <input
                       type="checkbox"
@@ -451,8 +608,9 @@ export default function Funcionarios() {
                       onChange={() => handlePermissionChange('reports')}
                       className="mr-3 text-mixjovim-gold focus:ring-mixjovim-gold"
                     />
-                    <span className="text-white">Visualizar Relatórios</span>
+                    <span className="text-white text-sm">Visualizar Relatórios</span>
                   </label>
+                  
                   <label className="flex items-center">
                     <input
                       type="checkbox"
@@ -460,8 +618,9 @@ export default function Funcionarios() {
                       onChange={() => handlePermissionChange('estoque')}
                       className="mr-3 text-mixjovim-gold focus:ring-mixjovim-gold"
                     />
-                    <span className="text-white">Acesso ao Estoque</span>
+                    <span className="text-white text-sm">Acesso ao Estoque</span>
                   </label>
+                  
                   <label className="flex items-center">
                     <input
                       type="checkbox"
@@ -469,7 +628,17 @@ export default function Funcionarios() {
                       onChange={() => handlePermissionChange('funcionarios')}
                       className="mr-3 text-mixjovim-gold focus:ring-mixjovim-gold"
                     />
-                    <span className="text-white">Gerenciar Funcionários</span>
+                    <span className="text-white text-sm">Gerenciar Funcionários</span>
+                  </label>
+                  
+                  <label className="flex items-center col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={newUser.permissions.financeiro}
+                      onChange={() => handlePermissionChange('financeiro')}
+                      className="mr-3 text-mixjovim-gold focus:ring-mixjovim-gold"
+                    />
+                    <span className="text-white text-sm">Acesso ao Financeiro</span>
                   </label>
                 </div>
               </div>

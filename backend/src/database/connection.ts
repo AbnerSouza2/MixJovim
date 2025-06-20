@@ -52,13 +52,35 @@ export async function initializeDatabase(): Promise<mysql.Connection> {
 async function createTables() {
   if (!connection) throw new Error('Database not initialized')
 
+  // Verificar e corrigir estrutura da tabela users
+  console.log('🔍 Verificando estrutura da tabela users...')
+  
+  try {
+    const [columns] = await connection.execute('DESCRIBE users')
+    const columnInfo = columns as any[]
+    const roleColumn = columnInfo.find(col => col.Field === 'role')
+    
+    console.log('📋 Estrutura atual da coluna role:', roleColumn)
+    
+    if (!roleColumn || !roleColumn.Type.includes('gerente')) {
+      console.log('🔧 Corrigindo estrutura da tabela users...')
+      await connection.execute(`
+        ALTER TABLE users 
+        MODIFY COLUMN role ENUM('admin', 'gerente', 'funcionario') DEFAULT 'funcionario'
+      `)
+      console.log('✅ Estrutura da tabela users corrigida!')
+    }
+  } catch (error) {
+    console.log('⚠️ Erro ao verificar estrutura, criando tabela do zero...')
+  }
+
   // Tabela de usuários
   await connection.execute(`
     CREATE TABLE IF NOT EXISTS users (
       id INT AUTO_INCREMENT PRIMARY KEY,
       username VARCHAR(255) UNIQUE NOT NULL,
       password VARCHAR(255) NOT NULL,
-      role ENUM('admin', 'funcionario') DEFAULT 'funcionario',
+      role ENUM('admin', 'gerente', 'funcionario') DEFAULT 'funcionario',
       permissions JSON,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -87,9 +109,30 @@ async function createTables() {
       total DECIMAL(10,2) NOT NULL,
       discount DECIMAL(10,2) DEFAULT 0,
       payment_method VARCHAR(50) DEFAULT 'dinheiro',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      user_id INT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
     )
   `)
+
+  // Verificar se a coluna user_id já existe na tabela sales
+  try {
+    const [salesColumns] = await connection.execute('DESCRIBE sales')
+    const salesColumnInfo = salesColumns as any[]
+    const userIdColumn = salesColumnInfo.find(col => col.Field === 'user_id')
+    
+    if (!userIdColumn) {
+      console.log('🔧 Adicionando coluna user_id na tabela sales...')
+      await connection.execute(`
+        ALTER TABLE sales 
+        ADD COLUMN user_id INT,
+        ADD FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
+      `)
+      console.log('✅ Coluna user_id adicionada na tabela sales!')
+    }
+  } catch (error) {
+    console.log('⚠️ Erro ao verificar/adicionar user_id na tabela sales:', error)
+  }
 
   // Tabela de itens das vendas
   await connection.execute(`
@@ -150,12 +193,32 @@ async function insertInitialData() {
       pdv: true,
       products: true,
       dashboard: true,
-      reports: true
+      reports: true,
+      estoque: true,
+      funcionarios: true,
+      financeiro: true
     })
 
     await connection.execute(
       'INSERT INTO users (username, password, role, permissions) VALUES (?, ?, ?, ?)',
       ['admin', adminPassword, 'admin', adminPermissions]
+    )
+
+    // Criar usuário gerente
+    const gerentePassword = await bcrypt.hash('gerente123', 10)
+    const gerentePermissions = JSON.stringify({
+      pdv: true,
+      products: true,
+      dashboard: true,
+      reports: true,
+      estoque: true,
+      funcionarios: false,
+      financeiro: true
+    })
+
+    await connection.execute(
+      'INSERT INTO users (username, password, role, permissions) VALUES (?, ?, ?, ?)',
+      ['gerente', gerentePassword, 'gerente', gerentePermissions]
     )
 
     // Criar usuário funcionário com permissão apenas para PDV
@@ -164,7 +227,10 @@ async function insertInitialData() {
       pdv: true,
       products: false,
       dashboard: false,
-      reports: false
+      reports: false,
+      estoque: false,
+      funcionarios: false,
+      financeiro: false
     })
 
     await connection.execute(
@@ -174,6 +240,7 @@ async function insertInitialData() {
 
     console.log('✅ Usuários criados:')
     console.log('   - Admin: admin / admin (todas as permissões)')
+    console.log('   - Gerente: gerente / gerente123 (gerência completa)')
     console.log('   - Funcionário: funcionario / pdv123 (apenas PDV)')
   }
 

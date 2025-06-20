@@ -9,7 +9,10 @@
     "kill:node": "taskkill /F /IM node.exe 2>nul || echo \"Nenhum processo Node.js ativo\"",
     "build": "tsc",
     "start": "node dist/index.js",
-    "db:setup": "ts-node src/database/setup.ts"
+    "db:setup": "ts-node src/database/setup.ts",
+    "security:audit": "ts-node src/security/audit.ts",
+    "security:check": "npm audit --audit-level moderate",
+    "security:fix": "npm audit fix"
   },
   "dependencies": {
     "axios": "^1.9.0",
@@ -17,9 +20,14 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "hpp": "^0.2.3",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.14.1",
+    "xss": "^1.0.14",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

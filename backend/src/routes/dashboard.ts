@@ -4,9 +4,23 @@ import { authenticateToken, AuthRequest } from '../middleware/auth'
 
 const router = Router()
 
+// Rota de teste simples para verificar autenticação
+router.get('/test', authenticateToken, async (req: AuthRequest, res) => {
+  console.log('🧪 Rota de teste do Dashboard acessada por:', req.user?.username)
+  res.json({ 
+    message: 'Dashboard funcionando!', 
+    user: req.user?.username,
+    role: req.user?.role,
+    timestamp: new Date() 
+  })
+})
+
 // Obter estatísticas do dashboard
+// Dashboard é obrigatório para todos os usuários - apenas verificar autenticação
 router.get('/stats', authenticateToken, async (req: AuthRequest, res) => {
   try {
+    console.log('🔍 Dashboard stats solicitado por:', req.user?.username, 'Role:', req.user?.role)
+    
     const db = getDatabase()
 
     // Data atual para filtros
@@ -47,7 +61,7 @@ router.get('/stats', authenticateToken, async (req: AuthRequest, res) => {
     `)
     const totalProdutos = totalProdutosRows as any[]
 
-    // Vendas por dia (últimos 7 dias)
+    // Vendas por dia (últimos 7 dias - análise semanal)
     const [vendasPorDiaRows] = await db.execute(`
       SELECT 
         DATE(created_at) as data,
@@ -90,7 +104,7 @@ router.get('/stats', authenticateToken, async (req: AuthRequest, res) => {
       LIMIT 5
     `)
 
-    res.json({
+    const response = {
       vendas_mes: vendasMes[0].total,
       vendas_dia: vendasDia[0].total,
       total_produtos: totalProdutos[0].total,
@@ -98,9 +112,52 @@ router.get('/stats', authenticateToken, async (req: AuthRequest, res) => {
       vendas_por_categoria: vendasPorCategoriaRows,
       status_estoque: statusEstoqueRows[0] || { baixo: 0, normal: 0, alto: 0 },
       produtos_baixo_estoque: produtosBaixoEstoqueRows
-    })
+    }
+
+    console.log('✅ Dashboard stats enviado com sucesso para:', req.user?.username)
+    res.json(response)
   } catch (error) {
-    console.error('Erro ao obter estatísticas:', error)
+    console.error('❌ Erro ao obter estatísticas:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+// Obter ranking por quantidade de itens vendidos por usuário
+router.get('/ranking', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    console.log('🏆 Ranking por itens vendidos solicitado por:', req.user?.username)
+    
+    const db = getDatabase()
+
+    // Data atual para filtros (mês atual - reseta todo dia 1º)
+    const today = new Date()
+    const firstDayMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+    const startDate = firstDayMonth.toISOString().split('T')[0] + ' 00:00:00'
+    const endDate = today.toISOString().split('T')[0] + ' 23:59:59'
+
+    console.log(`🏆 Ranking - Mês Atual: ${startDate} - ${endDate}`)
+
+    // Ranking por quantidade de itens vendidos (mês atual)
+    const [rankingRows] = await db.execute(`
+      SELECT 
+        COALESCE(u.username, 'Sistema') as vendedor,
+        IFNULL(SUM(si.quantidade), 0) as total_itens,
+        COUNT(DISTINCT s.id) as total_vendas,
+        IFNULL(SUM(si.subtotal), 0) as valor_total,
+        u.id as user_id
+      FROM sales s
+      LEFT JOIN sale_items si ON s.id = si.sale_id
+      LEFT JOIN users u ON s.user_id = u.id
+      WHERE s.created_at >= ? AND s.created_at <= ?
+      GROUP BY s.user_id, u.username
+      ORDER BY total_itens DESC, valor_total DESC
+      LIMIT 10
+    `, [startDate, endDate])
+
+    console.log('✅ Ranking por itens vendidos enviado com sucesso')
+    res.json(rankingRows)
+  } catch (error) {
+    console.error('❌ Erro ao obter ranking:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })

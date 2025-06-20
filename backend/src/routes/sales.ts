@@ -21,8 +21,8 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
     try {
       // Criar a venda
       const [saleResult] = await db.execute(
-        'INSERT INTO sales (total, discount, payment_method) VALUES (?, ?, ?)',
-        [total, discount, payment_method]
+        'INSERT INTO sales (total, discount, payment_method, user_id) VALUES (?, ?, ?, ?)',
+        [total, discount, payment_method, req.user?.id]
       )
 
       const insertResult = saleResult as any
@@ -131,9 +131,11 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
 
     // Buscar vendas com paginação
     const [salesRows] = await db.execute(
-      `SELECT s.id, s.total, s.discount, s.payment_method, 
-              DATE_FORMAT(s.created_at, '%Y-%m-%d %H:%i:%s') as created_at
+      `SELECT s.id, s.total, s.discount, s.payment_method, s.user_id,
+              DATE_FORMAT(s.created_at, '%Y-%m-%d %H:%i:%s') as created_at,
+              u.username as vendedor_nome
        FROM sales s
+       LEFT JOIN users u ON s.user_id = u.id
        WHERE s.created_at >= ? AND s.created_at <= ?
        ORDER BY s.created_at DESC
        LIMIT ? OFFSET ?`,
@@ -160,6 +162,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
         discount: sale.discount || 0,
         payment_method: sale.payment_method || 'dinheiro',
         created_at: sale.created_at,
+        vendedor_nome: sale.vendedor_nome || 'Sistema',
         items
       })
     }
@@ -189,9 +192,12 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res) => {
 
     // Buscar venda com data formatada
     const [saleRows] = await db.execute(
-      `SELECT id, total, discount, payment_method, 
-              DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as created_at
-       FROM sales WHERE id = ?`,
+      `SELECT s.id, s.total, s.discount, s.payment_method, s.user_id,
+              DATE_FORMAT(s.created_at, '%Y-%m-%d %H:%i:%s') as created_at,
+              u.username as vendedor_nome
+       FROM sales s
+       LEFT JOIN users u ON s.user_id = u.id
+       WHERE s.id = ?`,
       [id]
     )
 
@@ -242,28 +248,7 @@ router.get('/report/period', authenticateToken, async (req: AuthRequest, res) =>
 
     console.log(`📊 Gerando relatório entre: ${startDateTime} e ${endDateTime}`)
 
-    // Total do período por categoria com logs detalhados
-    console.log(`🔍 Executando consulta por categoria...`)
-    const [totalRows] = await db.execute(
-      `SELECT 
-        p.categoria,
-        SUM(si.subtotal) as total_categoria, 
-        SUM(si.quantidade) as vendas_categoria,
-        COUNT(DISTINCT s.id) as numero_vendas
-       FROM sales s
-       JOIN sale_items si ON s.id = si.sale_id
-       JOIN products p ON si.produto_id = p.id
-       WHERE s.created_at >= ? AND s.created_at <= ?
-         AND p.categoria IN ('Informática', 'Eletrodoméstico', 'Variados')
-       GROUP BY p.categoria
-       ORDER BY p.categoria`,
-      [startDateTime, endDateTime]
-    )
-
-    console.log(`📋 Categorias encontradas:`, totalRows)
-
     // Total geral do período
-    console.log(`🔍 Executando consulta total geral...`)
     const [totalGeralRows] = await db.execute(
       `SELECT SUM(total) as total_periodo, COUNT(*) as total_vendas
        FROM sales 
@@ -271,10 +256,7 @@ router.get('/report/period', authenticateToken, async (req: AuthRequest, res) =>
       [startDateTime, endDateTime]
     )
 
-    console.log(`💰 Total geral:`, totalGeralRows)
-
     // Vendas por dia no período
-    console.log(`🔍 Executando consulta por dia...`)
     const [vendasPorDiaRows] = await db.execute(
       `SELECT 
         DATE(s.created_at) as data,
@@ -288,31 +270,29 @@ router.get('/report/period', authenticateToken, async (req: AuthRequest, res) =>
       [startDateTime, endDateTime]
     )
 
-    console.log(`📅 Vendas por dia:`, vendasPorDiaRows)
+    // Produtos vendidos no período com vendedor e hora
+    const [produtosVendidosRows] = await db.execute(
+      `SELECT 
+        p.descricao as produto_nome,
+        p.categoria,
+        si.quantidade,
+        si.valor_unitario,
+        si.subtotal,
+        s.id as venda_id,
+        DATE_FORMAT(s.created_at, '%Y-%m-%d') as data_venda,
+        DATE_FORMAT(s.created_at, '%H:%i:%s') as hora_venda,
+        COALESCE(u.username, 'Sistema') as vendedor_nome
+       FROM sale_items si
+       JOIN sales s ON si.sale_id = s.id
+       JOIN products p ON si.produto_id = p.id
+       LEFT JOIN users u ON s.user_id = u.id
+       WHERE s.created_at >= ? AND s.created_at <= ?
+       ORDER BY s.created_at DESC`,
+      [startDateTime, endDateTime]
+    )
 
     // Verificar se há vendas no período
     const totalVendas = (totalGeralRows as any[])[0]?.total_vendas || 0
-    console.log(`📊 Total de vendas no período: ${totalVendas}`)
-
-    // Debug adicional: verificar dados brutos
-    console.log(`🔍 Verificando dados brutos...`)
-    const [debugRows] = await db.execute(
-      `SELECT 
-        s.id as sale_id,
-        DATE(s.created_at) as sale_date,
-        s.total as sale_total,
-        p.categoria,
-        si.quantidade,
-        si.subtotal
-       FROM sales s
-       JOIN sale_items si ON s.id = si.sale_id
-       JOIN products p ON si.produto_id = p.id
-       WHERE s.created_at >= ? AND s.created_at <= ?
-       ORDER BY s.created_at DESC
-       LIMIT 10`,
-      [startDateTime, endDateTime]
-    )
-    console.log(`🔍 Amostra de dados (últimas 10):`, debugRows)
 
     // Se não há vendas, retornar estrutura vazia
     if (totalVendas === 0) {
@@ -320,8 +300,8 @@ router.get('/report/period', authenticateToken, async (req: AuthRequest, res) =>
       return res.json({
         periodo: { startDate, endDate },
         resumo: { total_periodo: 0, total_vendas: 0 },
-        resumo_por_categoria: [],
-        vendas_por_dia: []
+        vendas_por_dia: [],
+        produtos_vendidos: []
       })
     }
 
@@ -330,8 +310,8 @@ router.get('/report/period', authenticateToken, async (req: AuthRequest, res) =>
     res.json({
       periodo: { startDate, endDate },
       resumo: totalGeral[0],
-      resumo_por_categoria: totalRows,
-      vendas_por_dia: vendasPorDiaRows
+      vendas_por_dia: vendasPorDiaRows,
+      produtos_vendidos: produtosVendidosRows
     })
   } catch (error) {
     console.error('Erro ao gerar relatório:', error)

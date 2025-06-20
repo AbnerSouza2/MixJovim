@@ -1,0 +1,19 @@
+{
+  "timestamp": "2025-06-20T05:56:04.950Z",
+  "status": "FAIL",
+  "vulnerabilities": [
+    {
+      "type": "AUDIT_ERROR",
+      "severity": "HIGH",
+      "description": "Erro durante auditoria: Database not initialized. Call initializeDatabase() first.",
+      "recommendation": "Verificar conectividade com banco de dados e logs"
+    }
+  ],
+  "statistics": {
+    "totalUsers": 0,
+    "adminUsers": 0,
+    "weakPasswords": 0,
+    "defaultPasswords": 0,
+    "inactiveUsers": 0
+  }
+}

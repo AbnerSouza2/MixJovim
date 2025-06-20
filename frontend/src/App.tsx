@@ -72,7 +72,7 @@ function AppRoutes() {
       <Route 
         path="/funcionarios" 
         element={
-          <ProtectedRoute requiredPermission="admin_only">
+          <ProtectedRoute requiredPermission="funcionarios">
             <Layout>
               <Funcionarios />
             </Layout>

@@ -385,44 +385,101 @@ export default function AddProduct() {
     const file = event.target.files?.[0]
     if (!file) return
 
+    // Verificar tamanho do arquivo
+    const fileSizeMB = file.size / (1024 * 1024)
+    console.log(`📁 Arquivo selecionado: ${file.name} (${fileSizeMB.toFixed(2)} MB)`)
+    
+    if (fileSizeMB > 100) {
+      toast.error('❌ Arquivo muito grande. Máximo: 100MB')
+      return
+    }
+
     try {
+      // Feedback diferenciado para arquivos grandes
+      if (fileSizeMB > 10) {
+        toast.loading('📤 Arquivo grande detectado. Processando... (pode levar alguns minutos)', {
+          duration: 0, // Não remover automaticamente
+          id: 'upload-progress'
+        })
+      } else {
+        toast.loading('📤 Importando planilha...', {
+          id: 'upload-progress'
+        })
+      }
+
       // Criar FormData para upload
       const formData = new FormData()
       formData.append('file', file)
 
       setLoading(true)
-      const response = await productsApi.importExcel(formData)
+      
+      // Configurar timeout maior para arquivos grandes
+      const timeoutMs = fileSizeMB > 10 ? 300000 : 60000 // 5 min para grandes, 1 min para pequenos
+      
+      const response = await productsApi.importExcel(formData, timeoutMs)
+      
+      // Remover toast de carregamento
+      toast.dismiss('upload-progress')
       
       // Verificar se há dados na resposta
       if (response.data) {
-        const { success, errors, created, updated, details } = response.data
+        const { success, errors, created, updated, totalProcessed, details } = response.data
+        
+        console.log('📊 Resultado da importação:', {
+          success,
+          errors,
+          created,
+          updated,
+          totalProcessed,
+          details
+        })
         
         // Mostrar resultado detalhado
         if (success > 0 && errors === 0) {
           if (created > 0 && updated > 0) {
-            toast.success(`✅ ${created} produtos novos criados, ${updated} produtos atualizados!`)
+            toast.success(`✅ Importação completa! ${created} produtos novos criados, ${updated} produtos atualizados. Total: ${totalProcessed} produtos processados.`, {
+              duration: 8000
+            })
           } else if (created > 0) {
-            toast.success(`✅ ${created} produtos novos criados!`)
+            toast.success(`✅ ${created} produtos novos criados! Total processado: ${totalProcessed}`, {
+              duration: 6000
+            })
           } else if (updated > 0) {
-            toast.success(`🔄 ${updated} produtos atualizados (estoque somado)!`)
+            toast.success(`🔄 ${updated} produtos atualizados (estoque somado)! Total processado: ${totalProcessed}`, {
+              duration: 6000
+            })
           } else {
-            toast.success(`✅ ${success} produtos processados com sucesso!`)
+            toast.success(`✅ ${success} produtos processados com sucesso!`, {
+              duration: 4000
+            })
           }
         } else if (success > 0 && errors > 0) {
           const createdMsg = created > 0 ? `${created} criados` : ''
           const updatedMsg = updated > 0 ? `${updated} atualizados` : ''
           const successMsg = [createdMsg, updatedMsg].filter(Boolean).join(', ')
           
-          toast.success(`✅ ${successMsg}! ⚠️ ${errors} produtos com erro.`)
+          toast.success(`✅ ${successMsg}! ⚠️ ${errors} produtos com erro de ${totalProcessed} processados.`, {
+            duration: 8000
+          })
+          
           if (details && details.length > 0) {
             console.log('Detalhes dos erros:', details)
+            // Mostrar primeiros 3 erros como exemplo
+            const firstErrors = details.slice(0, 3).join('\n')
+            toast.error(`Exemplos de erros:\n${firstErrors}`, {
+              duration: 10000
+            })
           }
         } else if (success === 0 && errors > 0) {
-          toast.error(`❌ Erro ao importar produtos. ${errors} erros encontrados.`)
+          toast.error(`❌ Erro ao importar produtos. ${errors} erros encontrados de ${totalProcessed} linhas.`, {
+            duration: 8000
+          })
           if (details && details.length > 0) {
             console.log('Detalhes dos erros:', details)
             // Mostrar primeiro erro como exemplo
-            toast.error(`Exemplo de erro: ${details[0]}`)
+            toast.error(`Exemplo de erro: ${details[0]}`, {
+              duration: 8000
+            })
           }
         } else {
           toast.error('❌ Nenhum produto foi importado. Verifique o formato do arquivo.')
@@ -433,14 +490,31 @@ export default function AddProduct() {
       
       await loadProducts()
     } catch (error: any) {
+      // Remover toast de carregamento
+      toast.dismiss('upload-progress')
+      
       console.error('Erro na importação:', error)
       
+      // Tratamento específico para timeouts
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        toast.error('⏱️ Timeout na importação. O arquivo é muito grande ou o servidor está sobrecarregado. Tente dividir a planilha em partes menores.', {
+          duration: 10000
+        })
+      }
       // Verificar se há detalhes do erro na resposta
-      if (error.response?.data?.details) {
+      else if (error.response?.data?.details) {
         const details = error.response.data.details
-        toast.error(`❌ Erro na importação: ${details[0] || 'Formato inválido'}`)
+        toast.error(`❌ Erro na importação: ${details}`, {
+          duration: 8000
+        })
+      } else if (error.response?.status === 413) {
+        toast.error('❌ Arquivo muito grande. Máximo permitido: 100MB. Tente dividir a planilha.', {
+          duration: 8000
+        })
       } else {
-        toast.error('❌ Erro ao importar planilha. Verifique o formato do arquivo.')
+        toast.error('❌ Erro ao importar planilha. Verifique o formato do arquivo e tente novamente.', {
+          duration: 6000
+        })
       }
     } finally {
       setLoading(false)
@@ -504,39 +578,35 @@ export default function AddProduct() {
     for (let row = 0; row < totalRows; row++) {
       const labelsInThisRow = Math.min(labelsPerRow, labelQuantity - (row * labelsPerRow))
       
-      // Centralizar as etiquetas quando há apenas uma na linha
-      const justifyContent = labelsInThisRow === 1 ? 'center' : 'flex-start'
-      
-      labelGrid += `<div style="display: flex; justify-content: ${justifyContent}; margin-bottom: 10px; gap: 10px;">`
+      // Sempre usar flex-start para manter tamanho padrão das etiquetas
+      labelGrid += `<div class="label-row">`
       
       for (let col = 0; col < labelsInThisRow; col++) {
         const labelIndex = (row * labelsPerRow) + col
         labelGrid += `
-          <div style="font-family: Arial, sans-serif; width: 300px; height: 220px; margin: 0; padding: 8px; border: 2px solid #000; text-align: center; box-sizing: border-box; background: white; display: flex; flex-direction: column; justify-content: space-between;">
+          <div style="font-family: Arial, sans-serif; width: 300px; height: 220px; margin: 0; padding: 8px; border: 3px solid #000; text-align: center; box-sizing: border-box; background: white; display: flex; flex-direction: column; justify-content: space-between; flex-shrink: 0;">
             
             <!-- Nome do Produto -->
-            <div style="font-weight: bold; font-size: 11px; line-height: 1.2; height: 45px; overflow: hidden; display: flex; align-items: center; justify-content: center; word-wrap: break-word; hyphens: auto;">
+            <div style="font-weight: bold; font-size: 10px; line-height: 1.1; height: 50px; overflow: hidden; display: flex; align-items: center; justify-content: center; word-wrap: break-word; hyphens: auto; color: #333; text-align: center; padding: 2px;">
               ${selectedProduct.descricao.toUpperCase()}
             </div>
             
-            <!-- Código de Barras -->
-            <div style="display: flex; justify-content: center; align-items: center; height: 50px;">
-              <canvas id="barcode${labelIndex}" style="max-width: 250px; height: 40px;"></canvas>
-            </div>
-            
-            <!-- Preços -->
-            <div style="margin: 5px 0;">
-              <div style="color: #666; font-size: 10px; font-weight: bold; margin-bottom: 2px;">
+            <!-- Preços - DESTAQUE PRINCIPAL -->
+            <div style="margin: 8px 0; padding: 12px 8px;">
+              <div style="font-size: 12px; font-weight: bold; margin-bottom: 4px; color: #666;">
                 DE R$ ${Number(selectedProduct.valor_unitario || 0).toFixed(2).replace('.', ',')}
               </div>
-              <div style="font-weight: bold; font-size: 14px; color: #000; margin-bottom: 2px;">
-                POR R$ ${Number(selectedProduct.valor_venda || 0).toFixed(2).replace('.', ',')}
+              <div style="font-weight: 900; font-size: 28px; color: #000; margin-bottom: 4px; letter-spacing: 1px;">
+                R$ ${Number(selectedProduct.valor_venda || 0).toFixed(2).replace('.', ',')}
+              </div>
+              <div style="font-size: 11px; font-weight: bold; color: #e74c3c; border: 2px solid #e74c3c; padding: 3px 10px; border-radius: 15px; display: inline-block;">
+                OFERTA ESPECIAL
               </div>
             </div>
             
-            <!-- Código de Barras em Texto -->
-            <div style="font-size: 8px; color: #666; margin-top: 2px;">
-              ${barcode}
+            <!-- Código de Barras - Movido para baixo -->
+            <div style="display: flex; justify-content: center; align-items: center; height: 45px; margin-top: 5px;">
+              <canvas id="barcode${labelIndex}" style="max-width: 250px; height: 35px;"></canvas>
             </div>
             
           </div>
@@ -559,6 +629,18 @@ export default function AddProduct() {
                 padding: 0;
                 font-family: Arial, sans-serif;
                 background: #f5f5f5;
+              }
+              .label-container {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: flex-start;
+              }
+              .label-row {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 10px;
+                align-items: flex-start;
               }
               @media print {
                 body { 
@@ -585,7 +667,7 @@ export default function AddProduct() {
                       JsBarcode(canvas, "${barcode}", {
                         format: "CODE128",
                         width: 2,
-                        height: 40,
+                        height: 35,
                         displayValue: false,
                         margin: 0,
                         background: "#ffffff",
@@ -1088,27 +1170,29 @@ export default function AddProduct() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-3 sm:space-y-0">
         <div>
-          <h1 className="text-2xl font-bold text-white mb-2">Gerenciar Produtos</h1>
-          <p className="text-gray-400">Adicione e gerencie seus produtos</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-white mb-1 sm:mb-2">Gerenciar Produtos</h1>
+          <p className="text-gray-400 text-sm sm:text-base">Adicione e gerencie seus produtos</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <button
             onClick={downloadTemplate}
-            className="btn-secondary flex items-center"
+            className="btn-secondary flex items-center justify-center text-xs sm:text-sm"
           >
-            <Download className="w-4 h-4 mr-2" />
-            Template Excel
+            <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Template Excel</span>
+            <span className="sm:hidden">Template</span>
           </button>
           <button
             onClick={openScannerModal}
-            className="btn-secondary flex items-center bg-green-600 hover:bg-green-700 text-white"
+            className="btn-secondary flex items-center justify-center bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm"
           >
-            <Scan className="w-4 h-4 mr-2" />
-            Escanear Produtos
+            <Scan className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Escanear Produtos</span>
+            <span className="sm:hidden">Escanear</span>
           </button>
           <button
             onClick={() => {
@@ -1117,10 +1201,11 @@ export default function AddProduct() {
               setIsStockUpdate(false)
               reset()
             }}
-            className="btn-primary flex items-center"
+            className="btn-primary flex items-center justify-center text-xs sm:text-sm"
           >
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Produto
+            <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Novo Produto</span>
+            <span className="sm:hidden">Novo</span>
           </button>
         </div>
       </div>
@@ -1128,8 +1213,8 @@ export default function AddProduct() {
       {/* Add/Edit Form */}
       {showAddForm && !editingProduct && (
         <div className="card">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-semibold text-white">
+          <div className="flex justify-between items-center mb-4 sm:mb-6">
+            <h3 className="text-base sm:text-lg font-semibold text-white">
               Adicionar Produto
             </h3>
             <button
@@ -1139,7 +1224,7 @@ export default function AddProduct() {
                 setIsStockUpdate(false)
                 reset()
               }}
-              className="text-gray-400 hover:text-white"
+              className="text-gray-400 hover:text-white text-xl"
             >
               ×
             </button>
@@ -1164,9 +1249,9 @@ export default function AddProduct() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+          <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="sm:col-span-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">
                 Descrição *
               </label>
               <input
@@ -1181,7 +1266,7 @@ export default function AddProduct() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">
                 {isStockUpdate ? 'Quantidade a Adicionar *' : 'Quantidade *'}
               </label>
               <input
@@ -1336,11 +1421,21 @@ export default function AddProduct() {
 
       {/* Import Excel */}
       <div className="card">
-        <div className="flex items-center mb-4">
-          <FileSpreadsheet className="w-5 h-5 text-green-400 mr-2" />
-          <h3 className="text-lg font-semibold text-white">Importar Planilha Excel</h3>
+        <div className="flex items-center mb-3 sm:mb-4">
+          <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5 text-green-400 mr-2" />
+          <h3 className="text-base sm:text-lg font-semibold text-white">Importar Planilha Excel</h3>
         </div>
-        <div className="flex items-center gap-4">
+        
+        {/* Informações sobre suporte a arquivos grandes */}
+        <div className="mb-4 p-3 bg-blue-900/30 border border-blue-700 rounded-lg">
+          <h4 className="text-sm font-semibold text-blue-300 mb-2">📊 Suporte a Planilhas Grandes</h4>
+          <ul className="text-xs text-blue-200 space-y-1">
+            <li>✅ Suporte até <strong>100MB</strong> e <strong>25.000+ produtos</strong></li>
+            <li>⏱️ Timeout de até 5 minutos para arquivos grandes</li>
+          </ul>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <input
             type="file"
             accept=".xlsx,.xls"
@@ -1350,29 +1445,30 @@ export default function AddProduct() {
           />
           <label
             htmlFor="excel-upload"
-            className="btn-secondary flex items-center cursor-pointer"
+            className="btn-secondary flex items-center justify-center cursor-pointer text-xs sm:text-sm"
           >
-            <Upload className="w-4 h-4 mr-2" />
+            <Upload className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
             Escolher Arquivo
           </label>
-          <p className="text-sm text-gray-400">
-            Selecione um arquivo Excel (.xlsx) com os produtos
-          </p>
+          <div className="text-xs sm:text-sm text-gray-400">
+            <p>Selecione um arquivo Excel (.xlsx) com os produtos</p>
+            <p className="text-green-400 mt-1">💡 Dica: Arquivos grandes podem levar alguns minutos</p>
+          </div>
         </div>
       </div>
 
       {/* Search and Products Table */}
       <div className="card">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-white">Produtos Cadastrados</h3>
-          <div className="relative">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 space-y-3 sm:space-y-0">
+          <h3 className="text-base sm:text-lg font-semibold text-white">Produtos Cadastrados</h3>
+          <div className="relative w-full sm:w-auto">
             <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="input-field pl-10"
-              placeholder="Buscar por descrição ou código de barras..."
+              className="input-field pl-10 w-full sm:w-64 text-sm"
+              placeholder="Buscar por descrição ou código..."
             />
           </div>
         </div>
@@ -1383,16 +1479,16 @@ export default function AddProduct() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="w-full">
+                                  <div className="overflow-x-auto scrollbar-custom">
+              <table className="w-full min-w-[800px]">
                 <thead>
                   <tr className="border-b border-gray-700">
-                    <th className="text-left py-3 px-4 text-gray-300">Descrição</th>
-                    <th className="text-left py-3 px-4 text-gray-300">Quantidade</th>
-                    <th className="text-left py-3 px-4 text-gray-300">Valor Unit.</th>
-                    <th className="text-left py-3 px-4 text-gray-300">Valor Venda</th>
-                    <th className="text-left py-3 px-4 text-gray-300">Categoria</th>
-                    <th className="text-left py-3 px-4 text-gray-300">Ações</th>
+                    <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">Descrição</th>
+                    <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">Qtd</th>
+                    <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm hidden md:table-cell">V. Unit.</th>
+                    <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">V. Venda</th>
+                    <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm hidden lg:table-cell">Categoria</th>
+                    <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1606,23 +1702,52 @@ export default function AddProduct() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex justify-center items-center mt-6 gap-2">
+              <div className="flex justify-center items-center mt-4 sm:mt-6 gap-2">
                 <button
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
-                  className="btn-secondary disabled:opacity-50"
+                  className="btn-secondary disabled:opacity-50 text-xs sm:text-sm px-2 sm:px-4"
                 >
-                  Anterior
+                  <span className="hidden sm:inline">Anterior</span>
+                  <span className="sm:hidden">Ant.</span>
                 </button>
-                <span className="text-gray-300">
-                  Página {currentPage} de {totalPages}
-                </span>
+
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`px-2 sm:px-3 py-1 text-xs sm:text-sm rounded border ${
+                        pageNum === currentPage
+                          ? 'bg-mixjovim-gold text-black border-mixjovim-gold font-medium'
+                          : 'bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+
+
+                
                 <button
                   onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
-                  className="btn-secondary disabled:opacity-50"
+                  className="btn-secondary disabled:opacity-50 text-xs sm:text-sm px-2 sm:px-4"
                 >
-                  Próxima
+                  <span className="hidden sm:inline">Próxima</span>
+                  <span className="sm:hidden">Prox.</span>
                 </button>
               </div>
             )}

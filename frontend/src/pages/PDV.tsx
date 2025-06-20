@@ -282,7 +282,7 @@ export default function PDV() {
             <div style="font-weight: bold; margin-bottom: 5px;">--- CUPOM NÃO FISCAL ---</div>
             <div>Data: ${new Date(lastSale.created_at).toLocaleDateString('pt-BR')}</div>
             <div>Hora: ${new Date(lastSale.created_at).toLocaleTimeString('pt-BR')}</div>
-            <div>Tel: (41) 99484-3913</div>
+            <div>Tel: (19) 99304-2090</div>
             <div>Vendedor: ${vendedorNome}</div>
           </div>
         </div>
@@ -396,14 +396,14 @@ export default function PDV() {
     <div className="min-h-screen bg-gray-950">
       {/* Conteúdo principal */}
       <div className="h-screen">
-        <div className="grid grid-cols-12 gap-4 h-full p-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 lg:gap-4 h-full p-2 lg:p-4">
           
           {/* CARRINHO - Esquerda */}
-          <div className="col-span-4">
+          <div className="col-span-1 lg:col-span-4 h-64 lg:h-full">
             <div className="bg-gray-900 rounded-lg h-full flex flex-col">
               {/* Lista de produtos */}
-              <div className="p-4 flex-1 overflow-y-auto">
-                <h2 className="text-white font-bold mb-4 text-center">CARRINHO</h2>
+              <div className="p-2 lg:p-4 flex-1 overflow-y-auto">
+                <h2 className="text-white font-bold mb-2 lg:mb-4 text-center text-sm lg:text-base">CARRINHO</h2>
                 <div className="space-y-2">
                   {cart.map((item, index) => (
                     <div key={index} className="p-3 bg-gray-800 rounded mb-2 text-white">
@@ -457,23 +457,23 @@ export default function PDV() {
               </div>
               
               {/* Total e botões - sempre fixo na parte inferior */}
-              <div className="p-4 border-t border-gray-700 bg-gray-900 rounded-b-lg">
-                <div className="text-center text-3xl font-bold text-blue-400 mb-4">
+              <div className="p-2 lg:p-4 border-t border-gray-700 bg-gray-900 rounded-b-lg">
+                <div className="text-center text-xl lg:text-3xl font-bold text-blue-400 mb-2 lg:mb-4">
                   R$ {Number(total || 0).toFixed(2)}
                 </div>
                 <div className="space-y-2">
                   <button
                     onClick={openPaymentModal}
                     disabled={loading || cart.length === 0}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded font-bold disabled:opacity-50"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 lg:py-3 px-2 lg:px-4 rounded font-bold disabled:opacity-50 text-sm lg:text-base"
                   >
-                    FECHAR VENDA (F2)
+                    FECHAR VENDA <span className="hidden lg:inline">(F2)</span>
                   </button>
                   <button
                     onClick={() => setShowProductModal(true)}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded font-bold"
+                    className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-2 lg:px-4 rounded font-bold text-sm lg:text-base"
                   >
-                    BUSCAR PRODUTO (F3)
+                    BUSCAR PRODUTO <span className="hidden lg:inline">(F3)</span>
                   </button>
                 </div>
               </div>
@@ -481,7 +481,7 @@ export default function PDV() {
           </div>
 
           {/* BUSCA DE PRODUTOS - Centro */}
-          <div className="col-span-5 space-y-4">
+          <div className="col-span-1 lg:col-span-5 space-y-2 lg:space-y-4">
             {/* Código de barras */}
             <div>
               <input
@@ -491,26 +491,36 @@ export default function PDV() {
                 onChange={(e) => setSearchCode(e.target.value)}
                 onKeyDown={handleBarcodeSearch}
                 placeholder="Digite código de barras ou nome do produto"
-                className="w-full bg-gray-800 text-white border border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:border-mixjovim-gold text-lg"
+                className="w-full bg-gray-800 text-white border border-gray-600 rounded-lg px-2 lg:px-4 py-2 lg:py-3 focus:outline-none focus:border-mixjovim-gold text-sm lg:text-lg"
               />
             </div>
 
-            <div className="bg-gray-900 rounded-lg p-8 text-center">
-              <Package className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400 text-lg mb-2">Escaneie o código de barras</p>
-              <p className="text-gray-500 text-sm">O produto será adicionado automaticamente ao carrinho</p>
-              <p className="text-gray-500 text-sm mt-2">Ou use F3 para buscar produtos manualmente</p>
+            <div className="bg-gray-900 rounded-lg p-4 lg:p-8 text-center">
+              <Package className="w-12 h-12 lg:w-16 lg:h-16 text-gray-600 mx-auto mb-2 lg:mb-4" />
+              <p className="text-gray-400 text-base lg:text-lg mb-1 lg:mb-2">Escaneie o código de barras</p>
+              <p className="text-gray-500 text-xs lg:text-sm">O produto será adicionado automaticamente ao carrinho</p>
+              <p className="text-gray-500 text-xs lg:text-sm mt-1 lg:mt-2"><span className="lg:hidden">Ou toque em</span><span className="hidden lg:inline">Ou use F3 para</span> buscar produtos</p>
             </div>
           </div>
 
           {/* RESUMO E DESCONTO - Direita */}
-          <div className="col-span-3 space-y-4">
-            <div className="text-sm text-gray-400 text-center">
-              Pressione ESC para voltar ao dashboard
+          <div className="col-span-1 lg:col-span-3 space-y-2 lg:space-y-4">
+            <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="inline-flex items-center gap-1 px-3 py-2 bg-red-600 hover:bg-red-700 border border-red-500 hover:border-red-400 rounded text-white transition-colors text-xs font-medium"
+                title="Voltar ao Dashboard"
+              >
+                <ArrowLeft className="w-3 h-3" />
+                <span className="hidden sm:inline">Voltar</span>
+                <span className="sm:hidden">Voltar</span>
+              </button>
+              <span className="hidden sm:inline">ou pressione ESC</span>
+              <span className="sm:hidden">ou ESC</span>
             </div>
             
             {/* Logo */}
-            <div className="bg-red-600 rounded-lg overflow-hidden">
+            <div className="bg-red-600 rounded-lg overflow-hidden hidden lg:block">
               <img 
                 src="/MixJovim.jpg" 
                 alt="MixJovim - Atacado e Varejo" 
@@ -532,7 +542,7 @@ export default function PDV() {
             </div>
 
             {/* Desconto */}
-            <div className="bg-gray-900 rounded-lg p-4">
+            <div className="bg-gray-900 rounded-lg p-2 lg:p-4">
               <label className="block text-white font-bold mb-2">Desconto</label>
               
               {/* Tipo de desconto */}
@@ -578,7 +588,7 @@ export default function PDV() {
             </div>
 
             {/* Valor recebido */}
-            <div className="bg-gray-900 rounded-lg p-4">
+            <div className="bg-gray-900 rounded-lg p-2 lg:p-4">
               <label className="block text-white font-bold mb-2">Valor Recebido</label>
               <input
                 type="number"
@@ -598,7 +608,7 @@ export default function PDV() {
             </div>
 
             {/* Resumo */}
-            <div className="bg-gray-900 rounded-lg p-4">
+            <div className="bg-gray-900 rounded-lg p-2 lg:p-4">
               <div className="space-y-2">
                 <div className="flex justify-between text-gray-300">
                   <span>Subtotal:</span>

@@ -6,11 +6,18 @@
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:clean": "npm run kill:node && npm run dev",
     "kill:node": "taskkill /F /IM node.exe 2>nul || echo \"Nenhum processo Node.js ativo\"",
+    "kill:ports": "npm run kill:port:3000 && npm run kill:port:3001 && npm run kill:port:5001",
+    "kill:port:3000": "netstat -ano | findstr :3000 | for /f \"tokens=5\" %a in ('more') do taskkill /F /PID %a 2>nul || echo \"Porta 3000 livre\"",
+    "kill:port:3001": "netstat -ano | findstr :3001 | for /f \"tokens=5\" %a in ('more') do taskkill /F /PID %a 2>nul || echo \"Porta 3001 livre\"",
+    "kill:port:5001": "netstat -ano | findstr :5001 | for /f \"tokens=5\" %a in ('more') do taskkill /F /PID %a 2>nul || echo \"Porta 5001 livre\"",
+    "dev:force": "npm run kill:node && npm run kill:ports && timeout /t 2 /nobreak >nul && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
     "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
     "build": "cd frontend && npm run build",
-    "start": "cd backend && npm start"
+    "start": "cd backend && npm start",
+    "check:ports": "netstat -ano | findstr \":3000 :3001 :5001\" || echo \"Todas as portas estão livres\"",
+    "restart": "npm run kill:node && timeout /t 3 /nobreak >nul && npm run dev"
   },
   "keywords": [
     "saas",

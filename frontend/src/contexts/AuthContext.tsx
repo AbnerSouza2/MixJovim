@@ -4,12 +4,15 @@ import { api } from '../services/api'
 interface User {
   id: number
   username: string
-  role: 'admin' | 'funcionario'
+  role: 'admin' | 'gerente' | 'funcionario'
   permissions?: {
     pdv: boolean
     products: boolean
     dashboard: boolean
     reports: boolean
+    estoque: boolean
+    funcionarios: boolean
+    financeiro: boolean
   }
 }
 
@@ -38,14 +41,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return '/dashboard'
     }
     
-    // Para funcionários, verificar permissões em ordem de prioridade
+    // Se é gerente, vai para dashboard se tiver permissão, senão para a primeira permissão disponível
+    if (user.role === 'gerente') {
+      if (user.permissions?.dashboard) return '/dashboard'
+    }
+    
+    // Para funcionários e gerentes, verificar permissões em ordem de prioridade
     const permissions = user.permissions
     if (!permissions) return '/login'
     
-    // Prioridade: PDV -> Dashboard -> Products -> Reports
-    if (permissions.pdv) return '/pdv'
+    // Prioridade: Dashboard -> PDV -> Products -> Financeiro -> Estoque -> Reports
     if (permissions.dashboard) return '/dashboard'
+    if (permissions.pdv) return '/pdv'
     if (permissions.products) return '/adicionar-produto'
+    if (permissions.financeiro) return '/financeiro'
+    if (permissions.estoque) return '/estoque'
     if (permissions.reports) return '/financeiro'
     
     // Se não tem nenhuma permissão, voltar para login

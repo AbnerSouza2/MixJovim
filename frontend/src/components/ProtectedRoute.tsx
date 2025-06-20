@@ -59,8 +59,20 @@ export default function ProtectedRoute({
 
   // Se requer permissão específica
   if (requiredPermission) {
-    const hasPermission = user?.role === 'admin' || 
-      (user?.permissions && user.permissions[requiredPermission as keyof typeof user.permissions])
+    let hasPermission = false
+    
+    // Admin sempre tem acesso
+    if (user?.role === 'admin') {
+      hasPermission = true
+    }
+    // Gerente tem acesso automático a funcionários e financeiro
+    else if (user?.role === 'gerente' && (requiredPermission === 'funcionarios' || requiredPermission === 'financeiro')) {
+      hasPermission = true
+    }
+    // Para outras permissões, verificar se o usuário tem a permissão específica
+    else if (user?.permissions && user.permissions[requiredPermission as keyof typeof user.permissions]) {
+      hasPermission = true
+    }
 
     if (!hasPermission) {
       return (

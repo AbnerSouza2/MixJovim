@@ -23,6 +23,7 @@ interface Sale {
   discount: number
   payment_method: string
   created_at: string
+  vendedor_nome?: string
   items: SaleItem[]
 }
 
@@ -41,6 +42,8 @@ export default function Financeiro() {
   const [loading, setLoading] = useState(true)
   
   const isAdmin = user?.role === 'admin'
+  const isManager = user?.role === 'gerente'
+  const canViewValues = isAdmin || isManager
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date()
     return today.toISOString().split('T')[0]
@@ -121,7 +124,7 @@ export default function Financeiro() {
   }
 
   // Se não for admin, mostrar tela de acesso restrito
-  if (!isAdmin) {
+  if (!canViewValues) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center max-w-md">
@@ -246,7 +249,7 @@ export default function Financeiro() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto scrollbar-custom">
               <table className="w-full">
                 <thead className="bg-gray-800">
                   <tr>
@@ -264,6 +267,9 @@ export default function Financeiro() {
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Pagamento
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Vendedor
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Ações
@@ -289,6 +295,11 @@ export default function Financeiro() {
                         {formatPaymentMethod(sale.payment_method)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                        <span className="text-mixjovim-gold font-medium">
+                          {sale.vendedor_nome || 'Sistema'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                         <button
                           onClick={() => handleViewDetails(sale.id)}
                           className="inline-flex items-center px-3 py-1 border border-gray-600 rounded-md text-xs font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 focus:outline-none focus:border-mixjovim-gold transition-colors"
@@ -307,20 +318,144 @@ export default function Financeiro() {
             {totalPages > 1 && (
               <div className="px-6 py-4 border-t border-gray-800 flex items-center justify-between">
                 <div className="text-sm text-gray-400">
-                  Página {currentPage} de {totalPages} ({totalSales} vendas no total)
+                  {totalSales} vendas no total
                 </div>
-                <div className="flex space-x-2">
+                <div className="flex items-center space-x-1">
+                  {/* Botão Anterior */}
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
-                    className="px-3 py-1 bg-gray-800 border border-gray-600 rounded text-sm text-gray-300 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-1 bg-gray-800 border border-gray-600 rounded text-sm text-gray-300 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
+
+                  {/* Números das páginas */}
+                  {(() => {
+                    const pages = [];
+                    const showEllipsis = totalPages > 7;
+                    
+                    if (!showEllipsis) {
+                      // Mostrar todas as páginas se forem 7 ou menos
+                      for (let i = 1; i <= totalPages; i++) {
+                        pages.push(
+                          <button
+                            key={i}
+                            onClick={() => setCurrentPage(i)}
+                            className={`px-3 py-1 text-sm rounded border ${
+                              i === currentPage
+                                ? 'bg-mixjovim-gold text-black border-mixjovim-gold font-medium'
+                                : 'bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700'
+                            }`}
+                          >
+                            {i}
+                          </button>
+                        );
+                      }
+                    } else {
+                      // Lógica para muitas páginas com reticências
+                      if (currentPage <= 4) {
+                        // Início: 1 2 3 4 5 ... 10
+                        for (let i = 1; i <= 5; i++) {
+                          pages.push(
+                            <button
+                              key={i}
+                              onClick={() => setCurrentPage(i)}
+                              className={`px-3 py-1 text-sm rounded border ${
+                                i === currentPage
+                                  ? 'bg-mixjovim-gold text-black border-mixjovim-gold font-medium'
+                                  : 'bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700'
+                              }`}
+                            >
+                              {i}
+                            </button>
+                          );
+                        }
+                        pages.push(<span key="ellipsis1" className="px-2 text-gray-500">...</span>);
+                        pages.push(
+                          <button
+                            key={totalPages}
+                            onClick={() => setCurrentPage(totalPages)}
+                            className="px-3 py-1 text-sm rounded border bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700"
+                          >
+                            {totalPages}
+                          </button>
+                        );
+                      } else if (currentPage >= totalPages - 3) {
+                        // Final: 1 ... 6 7 8 9 10
+                        pages.push(
+                          <button
+                            key={1}
+                            onClick={() => setCurrentPage(1)}
+                            className="px-3 py-1 text-sm rounded border bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700"
+                          >
+                            1
+                          </button>
+                        );
+                        pages.push(<span key="ellipsis2" className="px-2 text-gray-500">...</span>);
+                        for (let i = totalPages - 4; i <= totalPages; i++) {
+                          pages.push(
+                            <button
+                              key={i}
+                              onClick={() => setCurrentPage(i)}
+                              className={`px-3 py-1 text-sm rounded border ${
+                                i === currentPage
+                                  ? 'bg-mixjovim-gold text-black border-mixjovim-gold font-medium'
+                                  : 'bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700'
+                              }`}
+                            >
+                              {i}
+                            </button>
+                          );
+                        }
+                      } else {
+                        // Meio: 1 ... 4 5 6 ... 10
+                        pages.push(
+                          <button
+                            key={1}
+                            onClick={() => setCurrentPage(1)}
+                            className="px-3 py-1 text-sm rounded border bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700"
+                          >
+                            1
+                          </button>
+                        );
+                        pages.push(<span key="ellipsis3" className="px-2 text-gray-500">...</span>);
+                        for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+                          pages.push(
+                            <button
+                              key={i}
+                              onClick={() => setCurrentPage(i)}
+                              className={`px-3 py-1 text-sm rounded border ${
+                                i === currentPage
+                                  ? 'bg-mixjovim-gold text-black border-mixjovim-gold font-medium'
+                                  : 'bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700'
+                              }`}
+                            >
+                              {i}
+                            </button>
+                          );
+                        }
+                        pages.push(<span key="ellipsis4" className="px-2 text-gray-500">...</span>);
+                        pages.push(
+                          <button
+                            key={totalPages}
+                            onClick={() => setCurrentPage(totalPages)}
+                            className="px-3 py-1 text-sm rounded border bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700"
+                          >
+                            {totalPages}
+                          </button>
+                        );
+                      }
+                    }
+                    
+                    return pages;
+                  })()}
+
+                  {/* Botão Próximo */}
                   <button
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage === totalPages}
-                    className="px-3 py-1 bg-gray-800 border border-gray-600 rounded text-sm text-gray-300 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-1 bg-gray-800 border border-gray-600 rounded text-sm text-gray-300 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -366,6 +501,10 @@ export default function Financeiro() {
                       <span className="text-white">{formatPaymentMethod(selectedSale.payment_method)}</span>
                     </div>
                     <div className="flex justify-between">
+                      <span className="text-gray-400">Vendedor:</span>
+                      <span className="text-mixjovim-gold font-medium">{selectedSale.vendedor_nome || 'Sistema'}</span>
+                    </div>
+                    <div className="flex justify-between">
                       <span className="text-gray-400">Subtotal:</span>
                       <span className="text-white">R$ {(Number(selectedSale.total || 0) + Number(selectedSale.discount || 0)).toFixed(2)}</span>
                     </div>
@@ -406,7 +545,7 @@ export default function Financeiro() {
                 <div className="p-4 border-b border-gray-700">
                   <h4 className="text-lg font-semibold text-white">Produtos Vendidos</h4>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto scrollbar-custom">
                   <table className="w-full">
                     <thead className="bg-gray-700">
                       <tr>

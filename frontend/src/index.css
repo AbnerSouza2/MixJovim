@@ -7,23 +7,37 @@
     border-color: hsl(var(--border));
   }
   
+  html {
+    height: 100%;
+    overflow: hidden;
+  }
+  
   body {
     @apply bg-gray-950 text-white;
     font-family: 'Inter', sans-serif;
+    height: 100%;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+  }
+
+  #root {
+    height: 100%;
+    overflow: hidden;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-gradient-mixjovim hover:bg-mixjovim-red-dark text-white px-6 py-2 rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-xl;
+    @apply bg-gradient-mixjovim hover:bg-mixjovim-red-dark text-white px-4 sm:px-6 py-2 rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-xl text-sm sm:text-base;
   }
   
   .btn-secondary {
-    @apply bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-medium transition-colors border border-gray-600 hover:border-gray-500;
+    @apply bg-gray-700 hover:bg-gray-600 text-white px-4 sm:px-6 py-2 rounded-lg font-medium transition-colors border border-gray-600 hover:border-gray-500 text-sm sm:text-base;
   }
   
   .btn-gold {
-    @apply bg-gradient-gold hover:bg-mixjovim-gold text-gray-900 px-6 py-2 rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-xl;
+    @apply bg-gradient-gold hover:bg-mixjovim-gold text-gray-900 px-4 sm:px-6 py-2 rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-xl text-sm sm:text-base;
   }
   
   .btn-danger {
@@ -31,11 +45,11 @@
   }
   
   .input-field {
-    @apply bg-gray-800 border border-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-mixjovim-gold focus:border-transparent transition-all duration-200;
+    @apply bg-gray-800 border border-gray-700 text-white px-3 sm:px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-mixjovim-gold focus:border-transparent transition-all duration-200 text-sm sm:text-base;
   }
   
   .card {
-    @apply bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-lg;
+    @apply bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6 shadow-lg;
   }
   
   .card-mixjovim {
@@ -102,6 +116,47 @@
 
   .scrollbar-custom::-webkit-scrollbar-corner {
     background: #1f2937;
+  }
+
+  /* Scrollbar fino para sidebar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #6b7280 #374151;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #6b7280;
+    border-radius: 3px;
+    transition: background 0.2s ease;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+  }
+
+  .scrollbar-thumb-gray-700::-webkit-scrollbar-thumb {
+    background: #374151;
+  }
+
+  .scrollbar-thumb-gray-600::-webkit-scrollbar-thumb {
+    background: #4b5563;
+  }
+
+  .scrollbar-track-gray-800::-webkit-scrollbar-track {
+    background: #1f2937;
+  }
+
+  .scrollbar-track-gray-700::-webkit-scrollbar-track {
+    background: #374151;
   }
 } 
 
@@ -277,5 +332,30 @@
     inset: 0;
     background: radial-gradient(circle at 50% 50%, transparent, rgba(249, 168, 37, 0.1));
     animation: shimmer 4s ease-in-out infinite;
+  }
+
+  /* Classes responsivas específicas */
+  .mobile-padding {
+    @apply p-2 sm:p-4 lg:p-6;
+  }
+
+  .mobile-text {
+    @apply text-sm sm:text-base lg:text-lg;
+  }
+
+  .mobile-button {
+    @apply px-3 py-2 sm:px-4 sm:py-2 lg:px-6 lg:py-3 text-xs sm:text-sm lg:text-base;
+  }
+
+  .mobile-grid {
+    @apply grid-cols-1 sm:grid-cols-2 lg:grid-cols-3;
+  }
+
+  .mobile-gap {
+    @apply gap-2 sm:gap-4 lg:gap-6;
+  }
+
+  .mobile-card {
+    @apply p-3 sm:p-4 lg:p-6 text-sm sm:text-base;
   }
 } 

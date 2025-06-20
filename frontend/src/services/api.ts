@@ -54,6 +54,7 @@ export interface Product {
   total_perdas?: number
   conferentes?: string
   ultima_conferencia?: string
+  ultima_perda?: string
 }
 
 export interface Sale {
@@ -105,9 +106,10 @@ export const productsApi = {
   search: (query: string) =>
     api.get(`/products/search?q=${query}`),
   
-  importExcel: (formData: FormData) =>
+  importExcel: (formData: FormData, timeoutMs = 60000) =>
     api.post('/products/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: timeoutMs
     }),
 }
 
@@ -119,6 +121,15 @@ export const salesApi = {
     api.get(`/sales?page=${page}&limit=${limit}`),
 }
 
+export interface RankingVendas {
+  vendedor: string
+  total_itens: number
+  total_vendas: number
+  valor_total: number
+  user_id: number | null
+}
+
 export const dashboardApi = {
   getStats: () => api.get<DashboardStats>('/dashboard/stats'),
+  getRanking: () => api.get<RankingVendas[]>('/dashboard/ranking'),
 } 

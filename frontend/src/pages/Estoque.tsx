@@ -56,6 +56,19 @@ export default function Estoque() {
   
   const { user } = useAuth()
 
+  // Verificar se pode ver valores financeiros
+  const isAdmin = user?.role === 'admin'
+  const isManager = user?.role === 'gerente'
+  const canViewValues = isAdmin || isManager
+
+  // Função para formatar valores sensíveis (apenas totais, não valores individuais)
+  const formatSensitiveValue = (value: number, type: 'currency' | 'number' = 'currency') => {
+    if (!canViewValues) {
+      return type === 'currency' ? 'R$ ***' : '***'
+    }
+    return type === 'currency' ? formatCurrency(value) : value.toString()
+  }
+
   const fetchEstoque = async () => {
     try {
       const response = await fetch('/api/estoque')
@@ -229,64 +242,46 @@ export default function Estoque() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-white">Controle de Estoque</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-white">Controle de Estoque</h1>
       </div>
 
       {/* Resumo */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
         {/* Conferidos */}
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+        <div className="bg-gray-800 rounded-lg p-4 sm:p-6 border border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-400">Total Conferido</p>
-              <p className="text-2xl font-bold text-green-400">
-                {formatCurrency(resumo.conferidos.valor)}
-              </p>
-              <p className="text-sm text-gray-300">
-                {resumo.conferidos.quantidade} itens
-              </p>
+                              <p className="text-xs sm:text-sm text-gray-400">Total Conferido</p>
+                <p className="text-lg sm:text-2xl font-bold text-green-400">
+                  {formatSensitiveValue(resumo.conferidos.valor)}
+                </p>
+                <p className="text-xs sm:text-sm text-gray-300">
+                  {resumo.conferidos.quantidade} itens
+                </p>
             </div>
-            <div className="p-3 bg-green-600/20 rounded-full">
-              <ClipboardCheck className="w-8 h-8 text-green-400" />
-            </div>
-          </div>
-        </div>
-
-        {/* Vendidos */}
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-400">Total Vendido</p>
-              <p className="text-2xl font-bold text-blue-400">
-                {formatCurrency(resumo.vendidos.valor)}
-              </p>
-              <p className="text-sm text-gray-300">
-                {resumo.vendidos.quantidade} itens
-              </p>
-            </div>
-            <div className="p-3 bg-blue-600/20 rounded-full">
-              <ShoppingCart className="w-8 h-8 text-blue-400" />
-            </div>
+                          <div className="p-2 sm:p-3 bg-green-600/20 rounded-full">
+                <ClipboardCheck className="w-6 h-6 sm:w-8 sm:h-8 text-green-400" />
+              </div>
           </div>
         </div>
 
         {/* Perdas */}
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+        <div className="bg-gray-800 rounded-lg p-4 sm:p-6 border border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-400">Total em Perdas</p>
-              <p className="text-2xl font-bold text-red-400">
-                {formatCurrency(resumo.perdas.valor)}
+              <p className="text-xs sm:text-sm text-gray-400">Total em Perdas</p>
+              <p className="text-lg sm:text-2xl font-bold text-red-400">
+                {formatSensitiveValue(resumo.perdas.valor)}
               </p>
-              <p className="text-sm text-gray-300">
+              <p className="text-xs sm:text-sm text-gray-300">
                 {resumo.perdas.quantidade} itens
               </p>
             </div>
-            <div className="p-3 bg-red-600/20 rounded-full">
-              <AlertTriangle className="w-8 h-8 text-red-400" />
+            <div className="p-2 sm:p-3 bg-red-600/20 rounded-full">
+              <AlertTriangle className="w-6 h-6 sm:w-8 sm:h-8 text-red-400" />
             </div>
           </div>
         </div>
@@ -295,11 +290,11 @@ export default function Estoque() {
       {/* Tabs */}
       <div className="bg-gray-800 rounded-lg border border-gray-700">
         <div className="border-b border-gray-700">
-          <div className="flex justify-between items-center px-6">
-            <nav className="flex space-x-8">
+          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center px-3 sm:px-6 space-y-3 lg:space-y-0">
+            <nav className="flex space-x-4 sm:space-x-8 overflow-x-auto">
               <button
                 onClick={() => setActiveTab('detalhes')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                className={`py-3 sm:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
                   activeTab === 'detalhes'
                     ? 'border-mixjovim-gold text-mixjovim-gold'
                     : 'border-transparent text-gray-400 hover:text-gray-300'
@@ -309,7 +304,7 @@ export default function Estoque() {
               </button>
               <button
                 onClick={() => setActiveTab('historico')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                className={`py-3 sm:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
                   activeTab === 'historico'
                     ? 'border-mixjovim-gold text-mixjovim-gold'
                     : 'border-transparent text-gray-400 hover:text-gray-300'
@@ -320,23 +315,23 @@ export default function Estoque() {
             </nav>
             
             {/* Filtro de Busca */}
-            <div className="relative">
+            <div className="relative w-full lg:w-auto">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
                 placeholder="Buscar produtos..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-mixjovim-gold focus:border-mixjovim-gold w-64"
+                className="pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-mixjovim-gold focus:border-mixjovim-gold w-full lg:w-64 text-sm"
               />
             </div>
           </div>
         </div>
 
-        <div className="p-6">
+        <div className="p-3 sm:p-6">
           {activeTab === 'detalhes' ? (
             <>
-              <h2 className="text-xl font-semibold text-white mb-4">Controle Vendidos/Estoque</h2>
+              <h2 className="text-lg sm:text-xl font-semibold text-white mb-3 sm:mb-4">Controle Vendidos/Estoque</h2>
               
               {filteredDetalhes.length === 0 ? (
                 <div className="text-center py-8">
@@ -346,29 +341,34 @@ export default function Estoque() {
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+                <div className="overflow-x-auto scrollbar-custom">
+                  <table className="w-full min-w-[800px]">
                     <thead>
                       <tr className="border-b border-gray-700">
-                        <th className="text-left py-3 px-4 text-gray-300">Produto</th>
-                        <th className="text-left py-3 px-4 text-gray-300">Categoria</th>
-                        <th className="text-center py-3 px-4 text-gray-300">Vendidos/Estoque</th>
-                        <th className="text-center py-3 px-4 text-gray-300">Disponível</th>
-                        <th className="text-center py-3 px-4 text-gray-300">Perdas</th>
-                        <th className="text-left py-3 px-4 text-gray-300">Conferente(s)</th>
-                        <th className="text-right py-3 px-4 text-gray-300">Valor Unit.</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">Produto</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm hidden sm:table-cell">Categoria</th>
+                        <th className="text-center py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">Vend./Est.</th>
+                        <th className="text-center py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">Disp.</th>
+                        <th className="text-center py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">Perdas</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm hidden lg:table-cell">Conferente(s)</th>
+                        <th className="text-right py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">Valor</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredDetalhes.map((produto) => (
                         <tr key={produto.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
-                          <td className="py-3 px-4 text-white font-medium">
-                            {produto.descricao}
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 text-white font-medium text-xs sm:text-sm">
+                            <div className="max-w-[150px] sm:max-w-none truncate" title={produto.descricao}>
+                              {produto.descricao}
+                            </div>
+                            <div className="sm:hidden text-xs text-gray-400 mt-1">
+                              {produto.categoria}
+                            </div>
                           </td>
-                          <td className="py-3 px-4 text-gray-300">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm hidden sm:table-cell">
                             {produto.categoria}
                           </td>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 text-center text-xs sm:text-sm">
                             <span className="text-blue-400 font-bold">
                               {produto.quantidade_vendida}
                             </span>
@@ -377,14 +377,14 @@ export default function Estoque() {
                               {produto.estoque_conferido}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 text-center text-xs sm:text-sm">
                             <span className={`font-bold ${
                               produto.quantidade_disponivel > 0 ? 'text-green-400' : 'text-red-400'
                             }`}>
                               {produto.quantidade_disponivel}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 text-center text-xs sm:text-sm">
                             {produto.perdas > 0 ? (
                               <button
                                 onClick={() => showLossDetails(produto)}
@@ -397,13 +397,13 @@ export default function Estoque() {
                               <span className="text-gray-400">0</span>
                             )}
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 hidden lg:table-cell">
                             <div className="flex items-center gap-2">
                               {produto.conferentes ? (
                                 <>
-                                  <User className="w-4 h-4 text-mixjovim-gold" />
+                                  <User className="w-3 h-3 sm:w-4 sm:h-4 text-mixjovim-gold" />
                                   <div className="flex flex-col">
-                                    <span className="text-mixjovim-gold font-medium text-sm">
+                                    <span className="text-mixjovim-gold font-medium text-xs sm:text-sm">
                                       {produto.conferentes}
                                     </span>
                                     {produto.ultima_conferencia && (
@@ -414,12 +414,12 @@ export default function Estoque() {
                                   </div>
                                 </>
                               ) : (
-                                <span className="text-gray-500 italic text-sm">Não conferido</span>
+                                <span className="text-gray-500 italic text-xs sm:text-sm">Não conferido</span>
                               )}
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-right text-white">
-                            {formatCurrency(produto.valor_venda)}
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 text-right text-white text-xs sm:text-sm">
+                            {formatCurrency(produto.valor_venda)} {/* Valor sempre visível para todos */}
                           </td>
                         </tr>
                       ))}
@@ -430,7 +430,7 @@ export default function Estoque() {
             </>
           ) : (
             <>
-              <h2 className="text-xl font-semibold text-white mb-4">Histórico de Registros</h2>
+              <h2 className="text-lg sm:text-xl font-semibold text-white mb-3 sm:mb-4">Histórico de Registros</h2>
               
               {filteredRegistros.length === 0 ? (
                 <div className="text-center py-8">
@@ -440,72 +440,77 @@ export default function Estoque() {
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+                <div className="overflow-x-auto scrollbar-custom">
+                  <table className="w-full min-w-[1000px]">
                     <thead>
                       <tr className="border-b border-gray-700">
-                        <th className="text-left py-3 px-4 text-gray-300">Produto</th>
-                        <th className="text-left py-3 px-4 text-gray-300">Categoria</th>
-                        <th className="text-left py-3 px-4 text-gray-300">Tipo</th>
-                        <th className="text-left py-3 px-4 text-gray-300">Qtd</th>
-                        <th className="text-left py-3 px-4 text-gray-300">Valor Unit.</th>
-                        <th className="text-left py-3 px-4 text-gray-300">Valor de Venda</th>
-                        <th className="text-left py-3 px-4 text-gray-300">Conferente</th>
-                        <th className="text-left py-3 px-4 text-gray-300">Observações</th>
-                        <th className="text-left py-3 px-4 text-gray-300">Data</th>
-                        <th className="text-left py-3 px-4 text-gray-300">Ações</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">Produto</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm hidden sm:table-cell">Categoria</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">Tipo</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">Qtd</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm hidden md:table-cell">V. Unit.</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">V. Venda</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm hidden lg:table-cell">Conferente</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm hidden xl:table-cell">Observações</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm hidden md:table-cell">Data</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredRegistros.map((registro) => (
                         <tr key={registro.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
-                          <td className="py-3 px-4 text-white font-medium">
-                            {registro.produto_descricao}
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 text-white font-medium text-xs sm:text-sm">
+                            <div className="max-w-[120px] sm:max-w-none truncate" title={registro.produto_descricao}>
+                              {registro.produto_descricao}
+                            </div>
+                            <div className="sm:hidden text-xs text-gray-400 mt-1">
+                              {registro.categoria}
+                            </div>
                           </td>
-                          <td className="py-3 px-4 text-gray-300">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm hidden sm:table-cell">
                             {registro.categoria}
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 text-xs sm:text-sm">
                             {registro.tipo === 'conferido' ? (
-                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-600/20 text-green-400">
-                                Conferido
+                              <span className="px-1 sm:px-2 py-1 rounded-full text-xs font-medium bg-green-600/20 text-green-400">
+                                Conf.
                               </span>
                             ) : (
                               <button
                                 onClick={() => showSingleLossDetail(registro)}
-                                className="px-2 py-1 rounded-full text-xs font-medium bg-red-600/20 text-red-400 hover:bg-red-600/30 transition-colors cursor-pointer"
+                                className="px-1 sm:px-2 py-1 rounded-full text-xs font-medium bg-red-600/20 text-red-400 hover:bg-red-600/30 transition-colors cursor-pointer"
                                 title="Ver motivo da perda"
                               >
                                 Perda
                               </button>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-white">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 text-white text-xs sm:text-sm">
                             {registro.quantidade}
                           </td>
-                          <td className="py-3 px-4 text-white">
-                            {formatCurrency(registro.valor_unitario)}
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 text-white text-xs sm:text-sm hidden md:table-cell">
+                            {formatCurrency(registro.valor_unitario)} {/* Valor unitário sempre visível */}
                           </td>
-                          <td className="py-3 px-4 text-white font-medium">
-                            {formatCurrency(registro.valor_venda)}
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 text-white font-medium text-xs sm:text-sm">
+                            {formatCurrency(registro.valor_venda)} {/* Valor de venda sempre visível */}
                           </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-2">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 hidden lg:table-cell">
+                            <div className="flex items-center gap-1 sm:gap-2">
                               {registro.usuario_nome ? (
                                 <>
-                                  <User className="w-4 h-4 text-mixjovim-gold" />
-                                  <span className="text-mixjovim-gold font-medium">{registro.usuario_nome}</span>
+                                  <User className="w-3 h-3 sm:w-4 sm:h-4 text-mixjovim-gold" />
+                                  <span className="text-mixjovim-gold font-medium text-xs sm:text-sm">{registro.usuario_nome}</span>
                                 </>
                               ) : (
-                                <span className="text-gray-500 italic">Sistema</span>
+                                <span className="text-gray-500 italic text-xs sm:text-sm">Sistema</span>
                               )}
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-sm max-w-xs">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 text-xs sm:text-sm max-w-xs hidden xl:table-cell">
                             {registro.observacoes ? (
-                              <div className={`p-2 rounded ${
+                              <div className={`p-1 sm:p-2 rounded ${
                                 registro.tipo === 'perda' 
-                                  ? 'bg-red-900/20 border-l-4 border-red-500' 
+                                  ? 'bg-red-900/20 border-l-2 sm:border-l-4 border-red-500' 
                                   : 'bg-gray-800'
                               }`}>
                                 <span className={`font-medium ${
@@ -518,17 +523,17 @@ export default function Estoque() {
                               <span className="text-gray-500 italic">-</span>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-gray-300 text-sm">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm hidden md:table-cell">
                             {formatDate(registro.created_at)}
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-2 sm:py-3 px-2 sm:px-4">
                             {user?.role === 'admin' && (
                               <button
                                 onClick={() => handleDelete(registro.id)}
                                 className="text-red-400 hover:text-red-300 p-1"
                                 title="Excluir registro"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
                               </button>
                             )}
                           </td>
@@ -598,7 +603,7 @@ export default function Estoque() {
                         <div>
                           <span className="text-gray-400">Valor Perdido:</span>
                           <span className="text-white font-medium ml-2">
-                            {formatCurrency(perda.valor_total || (perda.valor_venda * perda.quantidade))}
+                            {formatSensitiveValue(perda.valor_total || (perda.valor_venda * perda.quantidade))} {/* Mantém mascaramento dos totais */}
                           </span>
                         </div>
                       </div>

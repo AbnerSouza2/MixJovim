@@ -4,12 +4,30 @@ import XLSX from 'xlsx'
 import { getDatabase } from '../database/connection'
 import { authenticateToken, AuthRequest } from '../middleware/auth'
 
+interface Product {
+  id: number
+  descricao: string
+  quantidade: number
+  valor_unitario: number
+  valor_venda: number
+  categoria: string
+  codigo_barras_1?: string
+  codigo_barras_2?: string
+  created_at?: Date
+  updated_at?: Date
+}
+
 const router = Router()
 
-// Configurar multer para upload de arquivos
+// Configurar multer para upload de arquivos grandes (planilhas com 25k+ produtos)
 const upload = multer({ 
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+  limits: { 
+    fileSize: 100 * 1024 * 1024, // 100MB
+    fieldSize: 100 * 1024 * 1024, // 100MB
+    fields: 10,
+    files: 1
+  }
 })
 
 // Rota específica para relatórios - retorna todos os produtos com dados de estoque real
@@ -255,30 +273,64 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
   }
 })
 
-// Importar produtos do Excel
+// Importar produtos do Excel - OTIMIZADO PARA GRANDES VOLUMES
 router.post('/import', authenticateToken, upload.single('file'), async (req: AuthRequest, res) => {
   try {
+    console.log('📂 [IMPORT] Iniciando importação de planilha...')
+    console.log('📂 [IMPORT] Headers:', JSON.stringify(req.headers, null, 2))
+    
     if (!req.file) {
+      console.log('❌ [IMPORT] Nenhum arquivo enviado')
       return res.status(400).json({ error: 'Nenhum arquivo enviado' })
     }
 
-    console.log('📁 Arquivo recebido:', req.file.originalname, req.file.size, 'bytes')
+    console.log('📁 [IMPORT] Arquivo recebido:', req.file.originalname, req.file.size, 'bytes')
+    console.log('📁 [IMPORT] MIME type:', req.file.mimetype)
 
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' })
+    // Verificar se é um arquivo Excel válido
+    const validMimeTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel', // .xls
+      'application/octet-stream' // Fallback
+    ]
+    
+    if (!validMimeTypes.includes(req.file.mimetype)) {
+      console.log('❌ [IMPORT] Tipo de arquivo inválido:', req.file.mimetype)
+      return res.status(400).json({ 
+        error: 'Tipo de arquivo inválido. Envie um arquivo Excel (.xlsx ou .xls)' 
+      })
+    }
+
+    console.log('📊 [IMPORT] Processando arquivo Excel...')
+    const workbook = XLSX.read(req.file.buffer, { 
+      type: 'buffer',
+      cellDates: false,
+      cellNF: false,
+      cellStyles: false
+    })
     const sheetName = workbook.SheetNames[0]
     const worksheet = workbook.Sheets[sheetName]
     
     // Converter para array de arrays para acessar por posição de coluna
-    const dataArray = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
-    console.log('📊 Dados extraídos do Excel:', dataArray.length, 'linhas')
+    const dataArray = XLSX.utils.sheet_to_json(worksheet, { 
+      header: 1,
+      raw: false,
+      defval: ''
+    })
+    
+    console.log('📊 [IMPORT] Dados extraídos do Excel:', dataArray.length, 'linhas')
     
     if (dataArray.length === 0) {
+      console.log('❌ [IMPORT] Arquivo vazio')
       return res.status(400).json({ error: 'Arquivo vazio ou formato inválido' })
     }
 
     // Log da primeira linha para debug
     if (dataArray.length > 0) {
-      console.log('🔍 Primeira linha:', dataArray[0])
+      console.log('🔍 [IMPORT] Primeira linha (cabeçalho):', dataArray[0])
+    }
+    if (dataArray.length > 1) {
+      console.log('🔍 [IMPORT] Segunda linha (primeiro produto):', dataArray[1])
     }
 
     const db = getDatabase()
@@ -288,150 +340,210 @@ router.post('/import', authenticateToken, upload.single('file'), async (req: Aut
     let updated = 0
     const errorMessages: string[] = []
 
-    // Começar da linha 1 se houver cabeçalho, ou linha 0 se não houver
-    const startRow = 1 // Assumindo que há cabeçalho na linha 0
+    // Começar da linha 1 se houver cabeçalho
+    const startRow = 1
+    const totalRows = dataArray.length - startRow
     
-    for (let i = startRow; i < dataArray.length; i++) {
+    console.log(`📝 [IMPORT] Processando ${totalRows} produtos em lotes...`)
+    
+    // Configurações para processamento em lotes
+    const BATCH_SIZE = 100 // Processar 100 produtos por vez
+    const totalBatches = Math.ceil(totalRows / BATCH_SIZE)
+    
+    // Cache para produtos existentes (otimização)
+    const existingProductsCache = new Map()
+    
+    // Pré-carregar todos os produtos existentes para cache
+    console.log('🗄️ [IMPORT] Carregando cache de produtos existentes...')
+    const [allProducts] = await db.execute(`
+      SELECT id, LOWER(TRIM(descricao)) as descricao_lower, codigo_barras_1, codigo_barras_2, quantidade
+      FROM products
+    `)
+    
+    const products = allProducts as any[]
+    products.forEach(product => {
+      // Cache por nome
+      existingProductsCache.set(`name_${product.descricao_lower}`, product)
+      
+      // Cache por códigos de barras
+      if (product.codigo_barras_1) {
+        existingProductsCache.set(`code1_${product.codigo_barras_1}`, product)
+      }
+      if (product.codigo_barras_2) {
+        existingProductsCache.set(`code2_${product.codigo_barras_2}`, product)
+      }
+    })
+    
+    console.log(`🗄️ [IMPORT] Cache carregado com ${products.length} produtos existentes`)
+    
+    // Processar em lotes para evitar travamento
+    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+      const batchStart = startRow + (batchIndex * BATCH_SIZE)
+      const batchEnd = Math.min(batchStart + BATCH_SIZE, dataArray.length)
+      
+      console.log(`📦 [IMPORT] Processando lote ${batchIndex + 1}/${totalBatches} (linhas ${batchStart + 1}-${batchEnd})`)
+      
+      // Iniciar transação para o lote
+      await db.query('START TRANSACTION')
+      
       try {
-        const row = dataArray[i] as any[]
+        const batchInserts = []
+        const batchUpdates = []
         
-        // Mapeamento específico baseado nas posições das colunas
-        const normalizedRow = {
-          // Coluna G (índice 6) - Descrição
-          descricao: row[6]?.toString()?.trim() || '',
-          
-          // Coluna E (índice 4) - Quantidade
-          quantidade: Number(row[4]) || 1,
-          
-          // Coluna J (índice 9) - Valor Unitário - SEMPRE 0 na importação
-          valor_unitario: 0,
-          
-          // Coluna K (índice 10) - Valor Total - SEMPRE 0 na importação
-          valor_venda: 0,
-          
-          // Categoria - SEMPRE vazio para forçar seleção das 3 categorias específicas
-          categoria: 'Selecione a categoria',
-          
-          // Coluna C (índice 2) - Código ML
-          codigo_barras_1: row[2]?.toString()?.trim() || null,
-          
-          // Coluna D (índice 3) - Código RZ
-          codigo_barras_2: row[3]?.toString()?.trim() || null
-        }
+        for (let i = batchStart; i < batchEnd; i++) {
+          try {
+            const row = dataArray[i] as any[]
+            
+            // Pular linhas vazias
+            if (!row || row.length === 0 || !row.some(cell => cell !== null && cell !== undefined && cell !== '')) {
+              continue
+            }
+            
+            // Mapeamento específico baseado nas posições das colunas
+            const normalizedRow = {
+              descricao: (row[6]?.toString()?.trim() || '').substring(0, 255), // Limitar tamanho
+              quantidade: Math.max(Number(row[4]) || 1, 1), // Garantir positivo
+              valor_unitario: 0,
+              valor_venda: 0,
+              categoria: 'Selecione a categoria',
+              codigo_barras_1: row[2]?.toString()?.trim()?.substring(0, 50) || null,
+              codigo_barras_2: row[3]?.toString()?.trim()?.substring(0, 50) || null
+            }
 
-        console.log(`📝 Processando linha ${i + 1}:`, normalizedRow)
+            // Validar campos obrigatórios
+            if (!normalizedRow.descricao || normalizedRow.descricao.length < 3) {
+              const errorMsg = `Linha ${i + 1}: Descrição inválida (${normalizedRow.descricao})`
+              errorMessages.push(errorMsg)
+              errors++
+              continue
+            }
 
-        // Validar campos obrigatórios (só descrição é essencial)
-        if (!normalizedRow.descricao || normalizedRow.descricao.length < 3) {
-          const errorMsg = `Linha ${i + 1}: Descrição inválida ou muito curta (${normalizedRow.descricao})`
-          console.log('❌', errorMsg)
-          errorMessages.push(errorMsg)
-          errors++
-          continue
-        }
+            // Filtrar códigos inválidos
+            if (normalizedRow.codigo_barras_1 && (normalizedRow.codigo_barras_1.includes('#') || normalizedRow.codigo_barras_1.length < 3)) {
+              normalizedRow.codigo_barras_1 = null
+            }
+            if (normalizedRow.codigo_barras_2 && (normalizedRow.codigo_barras_2.includes('#') || normalizedRow.codigo_barras_2.length < 3)) {
+              normalizedRow.codigo_barras_2 = null
+            }
 
-        // Nota: Valores sempre 0 na importação - usuário preenche depois
+            // Verificar produto existente usando cache
+            let existingProduct = null
+            const descricaoLower = normalizedRow.descricao.toLowerCase().trim()
+            
+            // 1º - Verificar pelo nome
+            existingProduct = existingProductsCache.get(`name_${descricaoLower}`)
+            
+            // 2º - Verificar pelos códigos se não encontrou pelo nome
+            if (!existingProduct && normalizedRow.codigo_barras_1) {
+              existingProduct = existingProductsCache.get(`code1_${normalizedRow.codigo_barras_1}`)
+            }
+            if (!existingProduct && normalizedRow.codigo_barras_2) {
+              existingProduct = existingProductsCache.get(`code2_${normalizedRow.codigo_barras_2}`)
+            }
 
-        // Verificar se os códigos são válidos (não vazios, não #VALOR!, etc.)
-        if (normalizedRow.codigo_barras_1 && (normalizedRow.codigo_barras_1.includes('#') || normalizedRow.codigo_barras_1.length < 3)) {
-          normalizedRow.codigo_barras_1 = null
-        }
-        if (normalizedRow.codigo_barras_2 && (normalizedRow.codigo_barras_2.includes('#') || normalizedRow.codigo_barras_2.length < 3)) {
-          normalizedRow.codigo_barras_2 = null
-        }
-
-        // VERIFICAR SE JÁ EXISTE PRODUTO - PRIORIDADE PELO NOME
-        let existingProduct = null
-        
-        // 1º - VERIFICAR PELO NOME DO PRODUTO (prioridade)
-        const [nameRows] = await db.execute(
-          `SELECT * FROM products WHERE LOWER(TRIM(descricao)) = LOWER(TRIM(?))`,
-          [normalizedRow.descricao]
-        )
-        
-        const existingByName = nameRows as any[]
-        if (existingByName.length > 0) {
-          existingProduct = existingByName[0]
-          console.log(`🎯 Produto encontrado pelo NOME: ${existingProduct.descricao}`)
-        }
-        
-        // 2º - SE NÃO ENCONTROU PELO NOME, VERIFICAR PELOS CÓDIGOS DE BARRAS
-        if (!existingProduct && (normalizedRow.codigo_barras_1 || normalizedRow.codigo_barras_2)) {
-          const [codeRows] = await db.execute(
-            `SELECT * FROM products 
-             WHERE (codigo_barras_1 = ? AND codigo_barras_1 IS NOT NULL) 
-             OR (codigo_barras_2 = ? AND codigo_barras_2 IS NOT NULL)
-             OR (codigo_barras_1 = ? AND codigo_barras_1 IS NOT NULL)
-             OR (codigo_barras_2 = ? AND codigo_barras_2 IS NOT NULL)`,
-            [
-              normalizedRow.codigo_barras_1, 
-              normalizedRow.codigo_barras_1,
-              normalizedRow.codigo_barras_2, 
-              normalizedRow.codigo_barras_2
-            ]
-          )
-          
-          const existingByCode = codeRows as any[]
-          if (existingByCode.length > 0) {
-            existingProduct = existingByCode[0]
-            console.log(`🔢 Produto encontrado pelo CÓDIGO: ${existingProduct.descricao}`)
+            if (existingProduct) {
+              // Produto existe - preparar update
+              const novaQuantidade = Number(existingProduct.quantidade) + Number(normalizedRow.quantidade)
+              batchUpdates.push({
+                id: existingProduct.id,
+                quantidade: novaQuantidade,
+                descricao: existingProduct.descricao || normalizedRow.descricao
+              })
+              
+              // Atualizar cache
+              existingProduct.quantidade = novaQuantidade
+              updated++
+            } else {
+              // Produto novo - preparar insert
+              batchInserts.push(normalizedRow)
+              
+              // Adicionar ao cache para evitar duplicatas no mesmo lote
+              existingProductsCache.set(`name_${descricaoLower}`, {
+                descricao: normalizedRow.descricao,
+                quantidade: normalizedRow.quantidade,
+                codigo_barras_1: normalizedRow.codigo_barras_1,
+                codigo_barras_2: normalizedRow.codigo_barras_2
+              })
+              
+              created++
+            }
+            
+            success++
+          } catch (error) {
+            const errorMsg = `Linha ${i + 1}: ${error}`
+            errorMessages.push(errorMsg)
+            errors++
           }
         }
-
-        if (existingProduct) {
-          // PRODUTO JÁ EXISTE - SOMAR QUANTIDADE
-          const novaQuantidade = Number(existingProduct.quantidade) + Number(normalizedRow.quantidade)
+        
+        // Executar INSERTs em lote
+        if (batchInserts.length > 0) {
+          const insertValues = batchInserts.map(item => [
+            item.descricao,
+            item.quantidade,
+            item.valor_unitario,
+            item.valor_venda,
+            item.categoria,
+            item.codigo_barras_1,
+            item.codigo_barras_2
+          ])
+          
+          const placeholders = batchInserts.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ')
+          const flatValues = insertValues.flat()
           
           await db.execute(
-            `UPDATE products SET quantidade = ? WHERE id = ?`,
-            [novaQuantidade, existingProduct.id]
+            `INSERT INTO products (descricao, quantidade, valor_unitario, valor_venda, categoria, codigo_barras_1, codigo_barras_2) VALUES ${placeholders}`,
+            flatValues
           )
           
-          console.log(`🔄 Produto atualizado - ID: ${existingProduct.id} | ${existingProduct.descricao} | Quantidade: ${existingProduct.quantidade} + ${normalizedRow.quantidade} = ${novaQuantidade}`)
-          success++
-          updated++
-        } else {
-          // PRODUTO NOVO - CRIAR
-          const [result] = await db.execute(
-            `INSERT INTO products (descricao, quantidade, valor_unitario, valor_venda, categoria, codigo_barras_1, codigo_barras_2)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [
-              normalizedRow.descricao,
-              normalizedRow.quantidade,
-              normalizedRow.valor_unitario,
-              normalizedRow.valor_venda,
-              normalizedRow.categoria,
-              normalizedRow.codigo_barras_1,
-              normalizedRow.codigo_barras_2
-            ]
-          )
-          
-          const insertResult = result as any
-          console.log(`✅ Produto novo criado com ID: ${insertResult.insertId} | ${normalizedRow.descricao} | Quantidade: ${normalizedRow.quantidade}`)
-          success++
-          created++
+          console.log(`✅ [IMPORT] Lote ${batchIndex + 1}: ${batchInserts.length} produtos inseridos`)
         }
-      } catch (error) {
-        const errorMsg = `Linha ${i + 1}: ${error}`
-        console.log('❌', errorMsg)
-        errorMessages.push(errorMsg)
-        errors++
+        
+        // Executar UPDATEs em lote
+        if (batchUpdates.length > 0) {
+          for (const update of batchUpdates) {
+            await db.execute(
+              'UPDATE products SET quantidade = ? WHERE id = ?',
+              [update.quantidade, update.id]
+            )
+          }
+          
+          console.log(`🔄 [IMPORT] Lote ${batchIndex + 1}: ${batchUpdates.length} produtos atualizados`)
+        }
+        
+        // Commit da transação
+        await db.query('COMMIT')
+        
+        // Log de progresso
+        const progressPercent = Math.round(((batchIndex + 1) / totalBatches) * 100)
+        console.log(`📈 [IMPORT] Progresso: ${progressPercent}% (${success} sucessos, ${errors} erros)`)
+        
+      } catch (batchError) {
+        // Rollback em caso de erro
+        await db.query('ROLLBACK')
+        console.error(`❌ [IMPORT] Erro no lote ${batchIndex + 1}:`, batchError)
+        throw batchError
       }
     }
 
-    console.log(`📈 Resultado da importação: ${success} sucessos, ${errors} erros`)
+    console.log(`📈 [IMPORT] Resultado final: ${success} sucessos, ${errors} erros`)
+    console.log(`📈 [IMPORT] Detalhes: ${created} criados, ${updated} atualizados`)
 
     res.json({
-      message: 'Importação concluída',
+      message: 'Importação concluída com sucesso',
       success,
       errors,
       created,
       updated,
-      details: errorMessages.length > 0 ? errorMessages.slice(0, 10) : [] // Limitar mensagens de erro
+      totalProcessed: success + errors,
+      details: errorMessages.length > 0 ? errorMessages.slice(0, 20) : [] // Máximo 20 erros
     })
   } catch (error) {
-    console.error('Erro na importação:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
+    console.error('❌ [IMPORT] Erro na importação:', error)
+    res.status(500).json({ 
+      error: 'Erro interno do servidor durante importação',
+      details: error instanceof Error ? error.message : 'Erro desconhecido'
+    })
   }
 })
 
