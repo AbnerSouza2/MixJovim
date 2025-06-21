@@ -117,8 +117,21 @@ export default function Funcionarios() {
       // Recarregar a lista para mostrar as mudanças
       await loadUsers()
     } catch (error: any) {
-      console.error('Erro ao salvar usuário:', error)
-      toast.error(error.response?.data?.message || 'Erro ao salvar usuário')
+      console.error('❌ Erro completo ao salvar usuário:', error)
+      console.error('❌ Response data:', error.response?.data)
+      console.error('❌ Status:', error.response?.status)
+      
+      let errorMessage = 'Erro ao salvar usuário'
+      
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -130,10 +143,10 @@ export default function Funcionarios() {
       username: user.username,
       password: '',
       role: user.role,
-      permissions: {
+      permissions: user.permissions ? {
         ...user.permissions,
         dashboard: true // Dashboard obrigatório para todos
-      } || {
+      } : {
         pdv: false,
         products: false,
         dashboard: true, // Dashboard obrigatório para todos
@@ -369,13 +382,38 @@ export default function Funcionarios() {
             Gerencie usuários e suas permissões no sistema
           </p>
         </div>
-        <button
-          onClick={openModal}
-          className="btn-gold flex items-center"
-        >
-          <UserPlus className="w-5 h-5 mr-2" />
-          Novo Funcionário
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={async () => {
+              try {
+                console.log('🧪 Testando criação simples...')
+                const testUser = {
+                  username: `teste${Date.now()}`,
+                  password: '123456',
+                  role: 'funcionario'
+                }
+                
+                await api.post('/auth/users/test', testUser)
+                toast.success('Usuário de teste criado!')
+                loadUsers()
+              } catch (error: any) {
+                console.error('Erro no teste:', error)
+                toast.error(error.response?.data?.error || 'Erro no teste')
+              }
+            }}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center text-sm"
+          >
+            🧪 Teste Rápido
+          </button>
+          
+          <button
+            onClick={openModal}
+            className="btn-gold flex items-center"
+          >
+            <UserPlus className="w-5 h-5 mr-2" />
+            Novo Funcionário
+          </button>
+        </div>
       </div>
 
       {/* Lista de usuários */}

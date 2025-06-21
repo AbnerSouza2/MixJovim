@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { userApi } from '../services/api'
 import { 
   LayoutDashboard, 
   Package, 
@@ -28,6 +29,7 @@ export default function Layout({ children }: LayoutProps) {
   const [reportsOpen, setReportsOpen] = useState(false)
   const [showPhotoOptions, setShowPhotoOptions] = useState(false)
   const [userPhoto, setUserPhoto] = useState<string | null>(null)
+  const [photoLoading, setPhotoLoading] = useState(false)
   const { logout, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -48,26 +50,97 @@ export default function Layout({ children }: LayoutProps) {
     return user.permissions[permission as keyof typeof user.permissions]
   }
 
-  // Carregar foto do localStorage ao inicializar
-  React.useEffect(() => {
-    const savedPhoto = localStorage.getItem(`userPhoto_${user?.id}`)
-    if (savedPhoto) {
-      setUserPhoto(savedPhoto)
+  // Carregar foto do usuário quando o componente monta
+  useEffect(() => {
+    if (user?.id) {
+      loadUserPhoto()
     }
   }, [user?.id])
 
-  // Função para lidar com upload de foto
-  const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const result = e.target?.result as string
-        setUserPhoto(result)
-        localStorage.setItem(`userPhoto_${user?.id}`, result)
-        setShowPhotoOptions(false)
+  const loadUserPhoto = async () => {
+    if (!user?.id) {
+      console.log('❌ [LOAD PHOTO] Sem ID do usuário')
+      return
+    }
+    
+    console.log(`📸 [LOAD PHOTO] Carregando foto para usuário ${user.id}`)
+    
+    try {
+      const response = await userApi.getPhoto(user.id)
+      console.log('📸 [LOAD PHOTO] Resposta recebida:', response.data)
+      
+      if (response.data && response.data.size > 0) {
+        const photoBlob = new Blob([response.data], { type: 'image/jpeg' })
+        const photoUrl = URL.createObjectURL(photoBlob)
+        setUserPhoto(photoUrl)
+        console.log('✅ [LOAD PHOTO] Foto carregada com sucesso')
+      } else {
+        console.log('⚠️ [LOAD PHOTO] Resposta vazia ou inválida')
+        setUserPhoto(null)
       }
-      reader.readAsDataURL(file)
+    } catch (error: any) {
+      console.log('❌ [LOAD PHOTO] Erro ao carregar foto:', error.response?.status, error.response?.data)
+      // Se não encontrar foto, mantém null
+      setUserPhoto(null)
+    }
+  }
+
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file || !user?.id) return
+
+    // Validar tipo de arquivo
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor, selecione apenas arquivos de imagem.')
+      return
+    }
+
+    // Validar tamanho (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('A imagem deve ter no máximo 5MB.')
+      return
+    }
+
+    setPhotoLoading(true)
+    try {
+      const formData = new FormData()
+      formData.append('photo', file)
+
+      await userApi.uploadPhoto(formData)
+      
+      // Recarregar a foto
+      await loadUserPhoto()
+      setShowPhotoOptions(false)
+      
+      console.log('✅ Foto enviada com sucesso!')
+    } catch (error: any) {
+      console.error('❌ Erro ao enviar foto:', error)
+      alert(error.response?.data?.error || 'Erro ao enviar foto')
+    } finally {
+      setPhotoLoading(false)
+    }
+  }
+
+  const handleRemovePhoto = async () => {
+    if (!user?.id) return
+
+    setPhotoLoading(true)
+    try {
+      await userApi.deletePhoto()
+      
+      // Limpar foto local
+      if (userPhoto) {
+        URL.revokeObjectURL(userPhoto)
+      }
+      setUserPhoto(null)
+      setShowPhotoOptions(false)
+      
+      console.log('✅ Foto removida com sucesso!')
+    } catch (error: any) {
+      console.error('❌ Erro ao remover foto:', error)
+      alert(error.response?.data?.error || 'Erro ao remover foto')
+    } finally {
+      setPhotoLoading(false)
     }
   }
 
@@ -114,14 +187,33 @@ export default function Layout({ children }: LayoutProps) {
       videoElement.srcObject = stream
       
       // Botão capturar
-      modal.querySelector('#capture-btn')?.addEventListener('click', () => {
+      modal.querySelector('#capture-btn')?.addEventListener('click', async () => {
         canvas.width = video.videoWidth
         canvas.height = video.videoHeight
         ctx?.drawImage(video, 0, 0)
         
-        const photoData = canvas.toDataURL('image/jpeg', 0.8)
-        setUserPhoto(photoData)
-        localStorage.setItem(`userPhoto_${user?.id}`, photoData)
+        // Converter para blob e fazer upload
+        canvas.toBlob(async (blob) => {
+          if (blob && user?.id) {
+            setPhotoLoading(true)
+            try {
+              const formData = new FormData()
+              formData.append('photo', blob, 'camera-photo.jpg')
+              
+              await userApi.uploadPhoto(formData)
+              
+              // Recarregar a foto
+              await loadUserPhoto()
+              
+              console.log('✅ Foto da câmera enviada com sucesso!')
+            } catch (error: any) {
+              console.error('❌ Erro ao enviar foto da câmera:', error)
+              alert(error.response?.data?.error || 'Erro ao enviar foto')
+            } finally {
+              setPhotoLoading(false)
+            }
+          }
+        }, 'image/jpeg', 0.8)
         
         // Parar stream e fechar modal
         stream.getTracks().forEach(track => track.stop())
@@ -232,69 +324,35 @@ export default function Layout({ children }: LayoutProps) {
         lg:translate-x-0 lg:static lg:inset-0 lg:flex lg:flex-col
         flex flex-col h-full
       `}>
-        {/* Header do Sidebar - Agora com usuário */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-gray-800 flex-shrink-0">
-          <div className="flex items-center space-x-3">
-            {/* Foto do usuário */}
-            <div className="relative">
+        {/* Header do Sidebar - Agora com logo da empresa */}
+        <div className="flex items-center justify-between h-28 px-6 border-b border-gray-800 flex-shrink-0">
+          <div className="flex items-center w-full">
+            {/* Logo da empresa - ocupando todo o espaço retangular */}
+            <div className="w-full h-24 overflow-hidden rounded-lg">
+              <img 
+                src="/MixJovim.jpg" 
+                alt="MixJovim Logo" 
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  // Fallback caso a imagem não carregue
+                  e.currentTarget.style.display = 'none'
+                  const fallback = e.currentTarget.nextElementSibling as HTMLElement
+                  if (fallback) fallback.style.display = 'flex'
+                }}
+              />
+              {/* Fallback - só aparece se a imagem não carregar */}
               <div 
-                className="h-12 w-12 rounded-full bg-mixjovim-gold flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity overflow-hidden"
-                onClick={() => setShowPhotoOptions(!showPhotoOptions)}
+                className="w-full h-full bg-gradient-to-r from-mixjovim-gold to-yellow-500 rounded-lg flex items-center justify-center"
+                style={{ display: 'none' }}
               >
-                {userPhoto ? (
-                  <img 
-                    src={userPhoto} 
-                    alt="Foto do usuário" 
-                    className="w-full h-full object-cover rounded-full"
-                  />
-                ) : (
-                  <span className="text-base font-medium text-gray-900">
-                    {user?.username?.charAt(0).toUpperCase()}
-                  </span>
-                )}
+                <span className="text-2xl font-bold text-gray-900">MJ</span>
               </div>
-              
-              {/* Menu de opções de foto */}
-              {showPhotoOptions && (
-                <div className="absolute top-12 left-0 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50 min-w-[160px]">
-                  <button
-                    onClick={handleCameraCapture}
-                    className="w-full flex items-center px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
-                  >
-                    <Camera className="w-4 h-4 mr-2" />
-                    Tirar Foto
-                  </button>
-                  <button
-                    onClick={handleFileUpload}
-                    className="w-full flex items-center px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Carregar
-                  </button>
-                </div>
-              )}
-            </div>
-            
-            {/* Nome e role do usuário */}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">
-                {user?.username}
-              </p>
-              <p className={`text-xs truncate ${
-                user?.role === 'admin' ? 'text-red-400' : 
-                user?.role === 'gerente' ? 'text-yellow-400' : 
-                'text-blue-400'
-              }`}>
-                {user?.role === 'admin' ? 'Administrador' : 
-                 user?.role === 'gerente' ? 'Gerente' : 
-                 'Funcionário'}
-              </p>
             </div>
           </div>
           
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-gray-400 hover:text-white transition-colors"
+            className="lg:hidden text-gray-400 hover:text-white transition-colors ml-2"
           >
             <X className="h-6 w-6" />
           </button>
@@ -427,7 +485,7 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-        {/* Top bar */}
+        {/* Top bar - Agora com usuário no canto direito */}
         <header className="bg-gray-900 border-b border-gray-800 h-16 flex items-center px-4 flex-shrink-0">
           <button
             onClick={() => setSidebarOpen(true)}
@@ -435,9 +493,81 @@ export default function Layout({ children }: LayoutProps) {
           >
             <Menu className="w-6 h-6" />
           </button>
-          <h2 className="text-lg font-semibold text-white truncate">
+          
+          {/* Título da página */}
+          <h2 className="text-lg font-semibold text-white truncate flex-1">
             {isReportPath ? 'Relatórios' : menuItems.find(item => item.path === location.pathname)?.name || 'Sistema de Gestão'}
           </h2>
+          
+          {/* Área do usuário - canto direito */}
+          <div className="flex items-center space-x-3">
+            <div className="text-right hidden sm:block">
+              <p className="text-sm text-white">
+                Seja bem-vindo, <span className="font-medium">{user?.username}</span>
+              </p>
+              <p className={`text-xs ${
+                user?.role === 'admin' ? 'text-red-400' : 
+                user?.role === 'gerente' ? 'text-yellow-400' : 
+                'text-blue-400'
+              }`}>
+                {user?.role === 'admin' ? 'Administrador' : 
+                 user?.role === 'gerente' ? 'Gerente' : 
+                 'Funcionário'}
+              </p>
+            </div>
+            
+            {/* Foto do usuário */}
+            <div className="relative">
+              <div 
+                className="h-10 w-10 rounded-full bg-mixjovim-gold flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity overflow-hidden border-2 border-gray-700"
+                onClick={() => setShowPhotoOptions(!showPhotoOptions)}
+              >
+                {userPhoto ? (
+                  <img 
+                    src={userPhoto} 
+                    alt="Foto do usuário" 
+                    className="w-full h-full object-cover rounded-full"
+                  />
+                ) : (
+                  <span className="text-sm font-medium text-gray-900">
+                    {user?.username?.charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              
+              {/* Menu de opções de foto */}
+              {showPhotoOptions && (
+                <div className="absolute top-12 right-0 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50 min-w-[160px]">
+                  <button
+                    onClick={handleCameraCapture}
+                    disabled={photoLoading}
+                    className="w-full flex items-center px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    <Camera className="w-4 h-4 mr-2" />
+                    Tirar Foto
+                  </button>
+                  <button
+                    onClick={handleFileUpload}
+                    disabled={photoLoading}
+                    className="w-full flex items-center px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {photoLoading ? 'Enviando...' : 'Carregar Foto'}
+                  </button>
+                  {userPhoto && (
+                    <button
+                      onClick={handleRemovePhoto}
+                      disabled={photoLoading}
+                      className="w-full flex items-center px-3 py-2 text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors disabled:opacity-50"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      {photoLoading ? 'Removendo...' : 'Remover Foto'}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </header>
 
         {/* Page content */}

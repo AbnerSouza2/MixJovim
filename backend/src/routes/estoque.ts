@@ -141,8 +141,10 @@ router.get('/detalhes', async (req, res) => {
       LEFT JOIN users u ON e.usuario_id = u.id
       LEFT JOIN produto_vendas pv ON p.id = pv.produto_id
       GROUP BY p.id, p.descricao, p.categoria, p.valor_venda, pv.quantidade_vendida
-      HAVING estoque_conferido > 0 OR quantidade_vendida > 0
-      ORDER BY p.descricao
+      HAVING (COALESCE(SUM(CASE WHEN e.tipo = 'conferido' THEN e.quantidade ELSE 0 END), 0) -
+              COALESCE(pv.quantidade_vendida, 0)) > 0 
+             OR COALESCE(SUM(CASE WHEN e.tipo = 'perda' THEN e.quantidade ELSE 0 END), 0) > 0
+      ORDER BY quantidade_disponivel DESC, p.descricao
     `)
     
     res.json(rows)

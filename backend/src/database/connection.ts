@@ -1,6 +1,7 @@
 import mysql from 'mysql2/promise'
 import bcrypt from 'bcryptjs'
 
+let pool: mysql.Pool | null = null
 let connection: mysql.Connection | null = null
 
 const dbConfig = {
@@ -9,11 +10,20 @@ const dbConfig = {
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'mixjovim',
-  charset: 'utf8mb4'
+  charset: 'utf8mb4',
+  // Configurações do pool para maior robustez
+  connectionLimit: 10,
+  acquireTimeout: 60000,
+  timeout: 60000,
+  reconnect: true,
+  idleTimeout: 300000,
+  // Configurações de retry
+  maxReconnects: 3,
+  reconnectDelay: 2000
 }
 
-export async function initializeDatabase(): Promise<mysql.Connection> {
-  if (connection) return connection
+export async function initializeDatabase(): Promise<mysql.Pool> {
+  if (pool) return pool
 
   try {
     // Primeiro conectar sem especificar o database para criá-lo se não existir
@@ -29,20 +39,47 @@ export async function initializeDatabase(): Promise<mysql.Connection> {
     await tempConnection.execute(`CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`)
     await tempConnection.end()
 
-    // Agora conectar ao database específico
-    connection = await mysql.createConnection(dbConfig)
+    // Criar pool de conexões
+    pool = mysql.createPool(dbConfig)
+
+    // Testar a conexão
+    const testConnection = await pool.getConnection()
+    await testConnection.ping()
+    testConnection.release()
 
     console.log('MySQL connected successfully')
 
-    // Criar tabelas
+    // Criar tabelas usando uma conexão temporária para setup inicial
+    connection = await mysql.createConnection(dbConfig)
     await createTables()
     console.log('Tabelas criadas com sucesso')
+
+    // Verificar se a coluna photo_path existe, se não, adicioná-la
+    try {
+      const [columns] = await connection.execute(
+        "SHOW COLUMNS FROM users LIKE 'photo_path'"
+      ) as any[]
+
+      if (columns.length === 0) {
+        console.log('🔄 Adicionando coluna photo_path na tabela users...')
+        await connection.execute(
+          "ALTER TABLE users ADD COLUMN photo_path VARCHAR(255) DEFAULT NULL"
+        )
+        console.log('✅ Coluna photo_path adicionada com sucesso')
+      }
+    } catch (error) {
+      console.log('⚠️ Erro ao verificar/adicionar coluna photo_path:', error)
+    }
 
     // Inserir dados iniciais
     await insertInitialData()
     console.log('Database initialized successfully')
 
-    return connection
+    // Fechar conexão de setup e usar apenas o pool
+    await connection.end()
+    connection = null
+
+    return pool
   } catch (error) {
     console.error('Erro ao conectar com MySQL:', error)
     throw error
@@ -78,11 +115,12 @@ async function createTables() {
   await connection.execute(`
     CREATE TABLE IF NOT EXISTS users (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      username VARCHAR(255) UNIQUE NOT NULL,
+      username VARCHAR(50) NOT NULL UNIQUE,
       password VARCHAR(255) NOT NULL,
       role ENUM('admin', 'gerente', 'funcionario') DEFAULT 'funcionario',
-      permissions JSON,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      photo_path VARCHAR(255) DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `)
 
@@ -363,14 +401,18 @@ async function insertInitialData() {
   }
 }
 
-export function getDatabase(): mysql.Connection {
-  if (!connection) {
+export function getDatabase(): mysql.Pool {
+  if (!pool) {
     throw new Error('Database not initialized. Call initializeDatabase() first.')
   }
-  return connection
+  return pool
 }
 
 export async function closeDatabase() {
+  if (pool) {
+    await pool.end()
+    pool = null
+  }
   if (connection) {
     await connection.end()
     connection = null

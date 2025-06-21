@@ -2,7 +2,7 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: 'http://localhost:5001/api',
-  timeout: 10000,
+  timeout: 30000, // Aumentado para 30 segundos
   headers: {
     'Content-Type': 'application/json',
   }
@@ -22,14 +22,25 @@ api.interceptors.request.use(
   }
 )
 
-// Interceptor para lidar com erros de autenticação
+// Interceptor para lidar com erros de autenticação - SIMPLIFICADO
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Erro de autenticação
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
       window.location.href = '/login'
+      return Promise.reject(error)
     }
+    
+    // Log de erro para debug sem retry automático
+    if (error.code === 'ECONNREFUSED' || 
+        error.code === 'NETWORK_ERROR' || 
+        error.response?.status === 503 ||
+        !error.response) {
+      console.warn('🔴 Problema de conectividade:', error.message)
+    }
+    
     return Promise.reject(error)
   }
 )
@@ -132,4 +143,18 @@ export interface RankingVendas {
 export const dashboardApi = {
   getStats: () => api.get<DashboardStats>('/dashboard/stats'),
   getRanking: () => api.get<RankingVendas[]>('/dashboard/ranking'),
+}
+
+export const userApi = {
+  // Funções de fotos de usuário
+  uploadPhoto: (formData: FormData) =>
+    api.post('/auth/upload-photo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+  
+  getPhoto: (userId: number) =>
+    api.get(`/auth/photo/${userId}`, { responseType: 'blob' }),
+  
+  deletePhoto: () =>
+    api.delete('/auth/photo'),
 } 

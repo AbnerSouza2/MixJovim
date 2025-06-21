@@ -27,6 +27,23 @@ const upload = multer({
     fieldSize: 100 * 1024 * 1024, // 100MB
     fields: 10,
     files: 1
+  },
+  fileFilter: (req, file, cb) => {
+    console.log('📁 [MULTER] Arquivo recebido:', file.originalname, file.mimetype)
+    
+    // Permitir apenas arquivos Excel
+    const allowedTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'application/octet-stream'
+    ]
+    
+    if (allowedTypes.includes(file.mimetype) || file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls')) {
+      cb(null, true)
+    } else {
+      console.log('❌ [MULTER] Tipo de arquivo rejeitado:', file.mimetype)
+      cb(new Error('Tipo de arquivo não suportado'))
+    }
   }
 })
 
@@ -406,8 +423,8 @@ router.post('/import', authenticateToken, upload.single('file'), async (req: Aut
               valor_unitario: 0,
               valor_venda: 0,
               categoria: 'Selecione a categoria',
-              codigo_barras_1: row[2]?.toString()?.trim()?.substring(0, 50) || null,
-              codigo_barras_2: row[3]?.toString()?.trim()?.substring(0, 50) || null
+              codigo_barras_1: (row[2]?.toString()?.trim() && row[2].toString().trim() !== '') ? row[2].toString().trim().substring(0, 50) : null,
+              codigo_barras_2: (row[3]?.toString()?.trim() && row[3].toString().trim() !== '') ? row[3].toString().trim().substring(0, 50) : null
             }
 
             // Validar campos obrigatórios
@@ -443,12 +460,14 @@ router.post('/import', authenticateToken, upload.single('file'), async (req: Aut
 
             if (existingProduct) {
               // Produto existe - preparar update
-              const novaQuantidade = Number(existingProduct.quantidade) + Number(normalizedRow.quantidade)
+              const novaQuantidade = Number(existingProduct.quantidade || 0) + Number(normalizedRow.quantidade || 0)
               batchUpdates.push({
-                id: existingProduct.id,
-                quantidade: novaQuantidade,
-                descricao: existingProduct.descricao || normalizedRow.descricao
+                id: existingProduct.id || 0,
+                quantidade: novaQuantidade || 0,
+                descricao: existingProduct.descricao || normalizedRow.descricao || ''
               })
+              
+              console.log(`🔍 [DEBUG BATCH UPDATE] ID: ${existingProduct.id}, Nova Qtd: ${novaQuantidade}`)
               
               // Atualizar cache
               existingProduct.quantidade = novaQuantidade
@@ -479,17 +498,21 @@ router.post('/import', authenticateToken, upload.single('file'), async (req: Aut
         // Executar INSERTs em lote
         if (batchInserts.length > 0) {
           const insertValues = batchInserts.map(item => [
-            item.descricao,
-            item.quantidade,
-            item.valor_unitario,
-            item.valor_venda,
-            item.categoria,
-            item.codigo_barras_1,
-            item.codigo_barras_2
+            item.descricao || '',
+            item.quantidade || 1,
+            item.valor_unitario || 0,
+            item.valor_venda || 0,
+            item.categoria || 'Selecione a categoria',
+            item.codigo_barras_1 === undefined ? null : item.codigo_barras_1,
+            item.codigo_barras_2 === undefined ? null : item.codigo_barras_2
           ])
           
           const placeholders = batchInserts.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ')
           const flatValues = insertValues.flat()
+          
+          // Log para debug
+          console.log('🔍 [DEBUG] Valores para INSERT:', flatValues.slice(0, 14)) // Primeiros 2 produtos
+          console.log('🔍 [DEBUG] Verificando undefined:', flatValues.some(val => val === undefined))
           
           await db.execute(
             `INSERT INTO products (descricao, quantidade, valor_unitario, valor_venda, categoria, codigo_barras_1, codigo_barras_2) VALUES ${placeholders}`,
@@ -502,9 +525,15 @@ router.post('/import', authenticateToken, upload.single('file'), async (req: Aut
         // Executar UPDATEs em lote
         if (batchUpdates.length > 0) {
           for (const update of batchUpdates) {
+            // Garantir que não há undefined nos valores de UPDATE
+            const quantidade = update.quantidade || 0
+            const id = update.id
+            
+            console.log(`🔍 [DEBUG UPDATE] ID: ${id}, Quantidade: ${quantidade}`)
+            
             await db.execute(
               'UPDATE products SET quantidade = ? WHERE id = ?',
-              [update.quantidade, update.id]
+              [quantidade, id]
             )
           }
           

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Plus, Trash2, ClipboardCheck, AlertTriangle, Calendar, Package, User, ShoppingCart, Search, X, Eye } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import api from '../services/api'
 
 interface EstoqueItem {
   id: number
@@ -71,12 +72,9 @@ export default function Estoque() {
 
   const fetchEstoque = async () => {
     try {
-      const response = await fetch('/api/estoque')
-      if (response.ok) {
-        const data = await response.json()
-        setRegistros(data)
-        setFilteredRegistros(data)
-      }
+      const response = await api.get('/estoque')
+      setRegistros(response.data)
+      setFilteredRegistros(response.data)
     } catch (error) {
       console.error('Erro ao carregar estoque:', error)
     }
@@ -84,12 +82,9 @@ export default function Estoque() {
 
   const fetchDetalhes = async () => {
     try {
-      const response = await fetch('/api/estoque/detalhes')
-      if (response.ok) {
-        const data = await response.json()
-        setDetalhes(data)
-        setFilteredDetalhes(data)
-      }
+      const response = await api.get('/estoque/detalhes')
+      setDetalhes(response.data)
+      setFilteredDetalhes(response.data)
     } catch (error) {
       console.error('Erro ao carregar detalhes:', error)
     }
@@ -97,11 +92,8 @@ export default function Estoque() {
 
   const fetchResumo = async () => {
     try {
-      const response = await fetch('/api/estoque/resumo')
-      if (response.ok) {
-        const data = await response.json()
-        setResumo(data)
-      }
+      const response = await api.get('/estoque/resumo')
+      setResumo(response.data)
     } catch (error) {
       console.error('Erro ao carregar resumo:', error)
     }
@@ -111,15 +103,10 @@ export default function Estoque() {
     if (!confirm('Tem certeza que deseja excluir este registro?')) return
 
     try {
-      const response = await fetch(`/api/estoque/${id}`, {
-        method: 'DELETE'
-      })
-
-      if (response.ok) {
-        fetchEstoque()
-        fetchResumo()
-        fetchDetalhes()
-      }
+      await api.delete(`/estoque/${id}`)
+      fetchEstoque()
+      fetchResumo()
+      fetchDetalhes()
     } catch (error) {
       console.error('Erro ao excluir registro:', error)
     }
@@ -133,20 +120,10 @@ export default function Estoque() {
     }
 
     try {
-      const response = await fetch(`/api/estoque/produto/${produto.id}/perdas`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setLossDetails(data)
-        setSelectedProductForLossDetails(produto)
-        setShowLossDetailsModal(true)
-      } else {
-        alert('Erro ao buscar detalhes das perdas')
-      }
+      const response = await api.get(`/estoque/produto/${produto.id}/perdas`)
+      setLossDetails(response.data)
+      setSelectedProductForLossDetails(produto)
+      setShowLossDetailsModal(true)
     } catch (error) {
       console.error('Erro ao buscar detalhes das perdas:', error)
       alert('Erro ao buscar detalhes das perdas')

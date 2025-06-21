@@ -104,10 +104,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const logout = () => {
+    // Limpar token e headers
     localStorage.removeItem('token')
     delete api.defaults.headers.common['Authorization']
+    
+    // Limpar qualquer cache adicional
+    localStorage.clear()
+    sessionStorage.clear()
+    
+    // Resetar estado
     setUser(null)
     setIsAuthenticated(false)
+    
+    // Forçar reload da página para garantir limpeza completa
+    setTimeout(() => {
+      window.location.href = '/login'
+    }, 100)
   }
 
   return (

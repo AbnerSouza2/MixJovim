@@ -24,7 +24,7 @@ import {
   ResponsiveContainer,
   Legend
 } from 'recharts'
-import { dashboardApi, DashboardStats, RankingVendas } from '../services/api'
+import { dashboardApi, DashboardStats, RankingVendas, userApi } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import toast from 'react-hot-toast'
 
@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [ranking, setRanking] = useState<RankingVendas[]>([])
   const [loading, setLoading] = useState(true)
+  const [userPhotos, setUserPhotos] = useState<Record<number, string>>({})
   
   const isAdmin = user?.role === 'admin'
   const isManager = user?.role === 'gerente'
@@ -40,7 +41,44 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadStats()
+    
+    // Cleanup function para revogar URLs das fotos
+    return () => {
+      Object.values(userPhotos).forEach(photoUrl => {
+        if (photoUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(photoUrl)
+        }
+      })
+    }
   }, [])
+  
+  // Cleanup quando userPhotos muda
+  useEffect(() => {
+    return () => {
+      Object.values(userPhotos).forEach(photoUrl => {
+        if (photoUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(photoUrl)
+        }
+      })
+    }
+  }, [userPhotos])
+
+  const loadUserPhoto = async (userId: number) => {
+    if (!userId) return null
+    
+    try {
+      const response = await userApi.getPhoto(userId)
+      if (response.data && response.data.size > 0) {
+        const photoBlob = new Blob([response.data], { type: 'image/jpeg' })
+        const photoUrl = URL.createObjectURL(photoBlob)
+        return photoUrl
+      }
+    } catch (error) {
+      // Se não encontrar foto, retorna null
+      console.log(`Foto não encontrada para usuário ${userId}`)
+    }
+    return null
+  }
 
   const loadStats = async () => {
     try {
@@ -50,6 +88,19 @@ export default function Dashboard() {
       ])
       setStats(statsResponse.data)
       setRanking(rankingResponse.data)
+      
+      // Carregar fotos dos usuários no ranking
+      const photos: Record<number, string> = {}
+      for (const vendedor of rankingResponse.data) {
+        if (vendedor.user_id) {
+          const photoUrl = await loadUserPhoto(vendedor.user_id)
+          if (photoUrl) {
+            photos[vendedor.user_id] = photoUrl
+          }
+        }
+      }
+      setUserPhotos(photos)
+      
     } catch (error) {
       toast.error('Erro ao carregar estatísticas')
       console.error('Erro ao carregar stats:', error)
@@ -343,11 +394,11 @@ export default function Dashboard() {
               <div className="flex flex-col items-center">
                 <div className="mb-2 sm:mb-3">
                   <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-full bg-gray-400 flex items-center justify-center overflow-hidden border-2 border-gray-300">
-                    {localStorage.getItem(`userPhoto_${ranking[1].user_id}`) ? (
+                    {ranking[1].user_id && userPhotos[ranking[1].user_id] ? (
                       <img 
-                        src={localStorage.getItem(`userPhoto_${ranking[1].user_id}`) || ''} 
+                        src={userPhotos[ranking[1].user_id]} 
                         alt={ranking[1].vendedor}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover rounded-full"
                       />
                     ) : (
                       <span className="text-sm sm:text-base lg:text-lg font-bold text-gray-900">
@@ -373,9 +424,9 @@ export default function Dashboard() {
               <div className="flex flex-col items-center">
                 <div className="mb-2 sm:mb-3 lg:mb-4">
                   <div className="w-16 h-16 sm:w-18 sm:h-18 lg:w-20 lg:h-20 rounded-full bg-gradient-to-r from-yellow-400 to-yellow-600 flex items-center justify-center overflow-hidden border-2 sm:border-3 lg:border-4 border-yellow-300">
-                    {localStorage.getItem(`userPhoto_${ranking[0].user_id}`) ? (
+                    {ranking[0].user_id && userPhotos[ranking[0].user_id] ? (
                       <img 
-                        src={localStorage.getItem(`userPhoto_${ranking[0].user_id}`) || ''} 
+                        src={userPhotos[ranking[0].user_id]} 
                         alt={ranking[0].vendedor}
                         className="w-full h-full object-cover rounded-full"
                       />
@@ -404,11 +455,11 @@ export default function Dashboard() {
               <div className="flex flex-col items-center">
                 <div className="mb-2 sm:mb-3">
                   <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-full bg-amber-600 flex items-center justify-center overflow-hidden border-2 border-amber-500">
-                    {localStorage.getItem(`userPhoto_${ranking[2].user_id}`) ? (
+                    {ranking[2].user_id && userPhotos[ranking[2].user_id] ? (
                       <img 
-                        src={localStorage.getItem(`userPhoto_${ranking[2].user_id}`) || ''} 
+                        src={userPhotos[ranking[2].user_id]} 
                         alt={ranking[2].vendedor}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover rounded-full"
                       />
                     ) : (
                       <span className="text-xs sm:text-sm lg:text-base font-bold text-gray-900">

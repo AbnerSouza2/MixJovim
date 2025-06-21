@@ -47,12 +47,18 @@ export default function RelatorioVendas() {
   const [startDate, setStartDate] = useState(() => {
     const today = new Date()
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
-    return firstDay.toISOString().split('T')[0]
+    const year = firstDay.getFullYear()
+    const month = String(firstDay.getMonth() + 1).padStart(2, '0')
+    const day = String(firstDay.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
   })
   
   const [endDate, setEndDate] = useState(() => {
     const today = new Date()
-    return today.toISOString().split('T')[0]
+    const year = today.getFullYear()
+    const month = String(today.getMonth() + 1).padStart(2, '0')
+    const day = String(today.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
   })
   
   const [loading, setLoading] = useState(false)
@@ -61,6 +67,28 @@ export default function RelatorioVendas() {
   const isAdmin = user?.role === 'admin'
   const isManager = user?.role === 'gerente'
   const canViewValues = isAdmin || isManager
+
+  // Função auxiliar para formatar datas de forma robusta
+  const formatDateHelper = (dateString: string) => {
+    if (!dateString) return ''
+    
+    // Lidar com datas ISO completas (ex: 2025-06-10T03:00:00.000Z)
+    if (dateString.includes('T')) {
+      const dateOnly = dateString.split('T')[0]
+      const parts = dateOnly.split('-')
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`
+      }
+    }
+    
+    // Lidar com datas simples (ex: 2025-06-10)
+    const parts = dateString.split('-')
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`
+    }
+    
+    return dateString
+  }
 
   const generateReport = async () => {
     if (!startDate || !endDate) {
@@ -100,11 +128,6 @@ export default function RelatorioVendas() {
 
     const formatCurrency = (value: number) => {
       return `R$ ${value.toFixed(2).replace('.', ',')}`
-    }
-
-    const formatDate = (dateString: string) => {
-      const date = new Date(dateString)
-      return date.toLocaleDateString('pt-BR')
     }
 
     const pdfContent = `
@@ -228,7 +251,7 @@ export default function RelatorioVendas() {
           <div class="header">
             <div class="company-name">MIXJOVIM</div>
             <div class="report-title">RELATÓRIO DE VENDAS</div>
-            <div class="period">Período: ${formatDate(reportData.periodo.startDate)} a ${formatDate(reportData.periodo.endDate)}</div>
+            <div class="period">Período: ${formatDateHelper(reportData.periodo.startDate)} a ${formatDateHelper(reportData.periodo.endDate)}</div>
           </div>
 
           <div class="summary">
@@ -268,7 +291,7 @@ export default function RelatorioVendas() {
                     <td class="col-qtd text-center">${produto.quantidade}</td>
                     <td class="col-valor text-right">${formatCurrency(Number(produto.valor_unitario || 0))}</td>
                     <td class="col-subtotal text-right">${formatCurrency(Number(produto.subtotal || 0))}</td>
-                    <td class="col-data text-center">${formatDate(produto.data_venda)}</td>
+                    <td class="col-data text-center">${formatDateHelper(produto.data_venda)}</td>
                     <td class="col-hora text-center">${produto.hora_venda}</td>
                     <td class="col-vendedor">${produto.vendedor_nome}</td>
                   </tr>
@@ -291,7 +314,7 @@ export default function RelatorioVendas() {
               <tbody>
                 ${reportData.vendas_por_dia.map(dia => `
                   <tr>
-                    <td>${formatDate(dia.data)}</td>
+                    <td>${formatDateHelper(dia.data)}</td>
                     <td class="text-center">${dia.total_vendas_dia}</td>
                     <td class="text-right">${formatCurrency(Number(dia.faturamento_dia || 0))}</td>
                     <td class="text-right">${formatCurrency(Number(dia.ticket_medio_dia || 0))}</td>
@@ -404,9 +427,14 @@ export default function RelatorioVendas() {
           {/* Resumo Geral */}
           <div className="bg-gray-900 rounded-lg p-6 border border-gray-800">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">
-                Resumo Geral do Período
-              </h2>
+              <div>
+                <h2 className="text-lg font-semibold text-white">
+                  Resumo Geral do Período
+                </h2>
+                <p className="text-sm text-gray-400 mt-1">
+                  {formatDateHelper(reportData.periodo.startDate)} até {formatDateHelper(reportData.periodo.endDate)}
+                </p>
+              </div>
               <button
                 onClick={generatePDF}
                 className="btn-gold flex items-center"
@@ -493,7 +521,7 @@ export default function RelatorioVendas() {
                           R$ {Number(produto.subtotal || 0).toFixed(2)}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-300 text-center">
-                          {new Date(produto.data_venda).toLocaleDateString('pt-BR')}
+                          {formatDateHelper(produto.data_venda)}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-300 text-center">
                           {produto.hora_venda}
@@ -543,7 +571,7 @@ export default function RelatorioVendas() {
                     {reportData.vendas_por_dia.map((dia, index) => (
                       <tr key={index} className="hover:bg-gray-800">
                         <td className="px-6 py-4 text-sm text-white font-medium">
-                          {new Date(dia.data).toLocaleDateString('pt-BR')}
+                          {formatDateHelper(dia.data)}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-300 text-center">
                           {dia.total_vendas_dia}

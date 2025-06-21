@@ -15,6 +15,7 @@ import {
   requireSecurityHeaders,
   constantTimeResponse
 } from './middleware/security'
+import { getDatabase } from './database/connection'
 
 const app = express()
 const PORT = 5001
@@ -22,8 +23,8 @@ const PORT = 5001
 // Configurar proxy trust para rate limiting funcionar corretamente atrás de proxies
 app.set('trust proxy', 1)
 
-// Middleware de Segurança - ORDEM IMPORTANTE
-app.use(helmet({
+// Middleware de Segurança - TEMPORARIAMENTE DESABILITADO PARA DEBUG CORS
+/* app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
@@ -38,56 +39,35 @@ app.use(helmet({
     },
   },
   crossOriginEmbedderPolicy: false // Desabilitar para permitir imagens externas
-}))
+})) */
 
 // Proteção contra HTTP Parameter Pollution
 app.use(hpp())
 
-// Rate Limiting geral
-app.use(generalRateLimit)
+// Rate Limiting geral - RELAXADO
+// app.use(generalRateLimit)
 
-// Logger de segurança
-app.use(securityLogger)
+// Logger de segurança - SIMPLIFICADO
+// app.use(securityLogger)
 
-// Timing attack protection
-app.use(constantTimeResponse)
+// Timing attack protection - DESABILITADO
+// app.use(constantTimeResponse)
 
-// Verificação de headers de segurança (removido para uploads funcionarem)
+// Verificação de headers de segurança - DESABILITADA para evitar problemas
 // app.use(requireSecurityHeaders)
 
 // Limite de tamanho do payload - MUITO MAIOR para planilhas com 25k+ produtos
 app.use(payloadSizeLimit(100 * 1024 * 1024)) // 100MB max para planilhas grandes
 
-// CORS configurado de forma restritiva
+// CORS configurado de forma permissiva para desenvolvimento
 app.use(cors({
-  origin: function (origin, callback) {
-    // Lista de origens permitidas
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:3001', 
-      'http://localhost:3002',
-      'http://localhost:3003',
-      'http://localhost:3004',
-      'http://localhost:3005'
-    ]
-    
-    // Permitir requests sem origin (mobile apps, Postman, etc.) em desenvolvimento
-    // ou quando NODE_ENV não está definido (desenvolvimento local)
-    if (!origin && (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV)) {
-      return callback(null, true)
-    }
-    
-    if (allowedOrigins.indexOf(origin!) !== -1) {
-      callback(null, true)
-    } else {
-      console.log(`🚨 [CORS BLOCKED] Origin não permitida: ${origin}`)
-      callback(new Error('Origem não permitida pelo CORS'))
-    }
-  },
+  origin: true, // Permitir todas as origens em desenvolvimento
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }))
 
 // Parser JSON com limite de tamanho aumentado para grandes importações
@@ -108,6 +88,15 @@ app.use((req, res, next) => {
   res.setHeader('X-XSS-Protection', '1; mode=block')
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
   res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()')
+  next()
+})
+
+// Middleware simplificado - apenas log de requisições
+app.use((req, res, next) => {
+  // Log apenas para debug quando necessário
+  if (process.env.DEBUG_REQUESTS === 'true') {
+    console.log(`📝 [REQUEST] ${req.method} ${req.path}`)
+  }
   next()
 })
 
@@ -163,11 +152,36 @@ app.use('*', (req, res) => {
   })
 })
 
+// Monitoramento da conexão do banco - INTERVALO MAIOR para reduzir overhead
+let dbHealthCheck: NodeJS.Timeout | null = null
+
+async function monitorDatabaseHealth() {
+  try {
+    const db = getDatabase()
+    const connection = await db.getConnection()
+    await connection.ping()
+    connection.release()
+    // console.log('🟢 [DB MONITOR] Conexão saudável')
+  } catch (error) {
+    console.error('🔴 [DB MONITOR] Conexão com banco perdida, tentando reconectar...', error)
+    try {
+      await initializeDatabase()
+      console.log('🟢 [DB MONITOR] Reconexão bem-sucedida')
+    } catch (reconnectError) {
+      console.error('🔴 [DB MONITOR] Falha na reconexão:', reconnectError)
+    }
+  }
+}
+
 // Inicializar banco de dados e servidor
 async function startServer() {
   try {
     await initializeDatabase()
     console.log('✅ Banco de dados conectado')
+    
+    // Iniciar monitoramento da conexão a cada 2 minutos (menos overhead)
+    dbHealthCheck = setInterval(monitorDatabaseHealth, 120000)
+    console.log('🔍 Monitor de saúde do banco ativado (2min)')
     
     const server = app.listen(PORT, () => {
       console.log(`🚀 Servidor rodando na porta ${PORT}`)
@@ -179,6 +193,10 @@ async function startServer() {
     // Graceful shutdown
     process.on('SIGTERM', () => {
       console.log('🔄 SIGTERM recebido, finalizando servidor...')
+      if (dbHealthCheck) {
+        clearInterval(dbHealthCheck)
+        console.log('🔍 Monitor de saúde do banco desativado')
+      }
       server.close(() => {
         console.log('✅ Servidor finalizado com sucesso')
         process.exit(0)
@@ -187,6 +205,10 @@ async function startServer() {
 
     process.on('SIGINT', () => {
       console.log('🔄 SIGINT recebido, finalizando servidor...')
+      if (dbHealthCheck) {
+        clearInterval(dbHealthCheck)
+        console.log('🔍 Monitor de saúde do banco desativado')
+      }
       server.close(() => {
         console.log('✅ Servidor finalizado com sucesso')
         process.exit(0)

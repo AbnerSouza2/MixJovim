@@ -259,7 +259,7 @@ router.get('/report/period', authenticateToken, async (req: AuthRequest, res) =>
     // Vendas por dia no período
     const [vendasPorDiaRows] = await db.execute(
       `SELECT 
-        DATE(s.created_at) as data,
+        DATE_FORMAT(DATE(s.created_at), '%Y-%m-%d') as data,
         COUNT(*) as total_vendas_dia,
         SUM(s.total) as faturamento_dia,
         AVG(s.total) as ticket_medio_dia

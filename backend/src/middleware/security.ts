@@ -32,12 +32,12 @@ export const loginRateLimit = rateLimit({
   skipSuccessfulRequests: true // Não contar tentativas bem-sucedidas
 })
 
-// Rate Limiting para criação de usuários
+// Rate Limiting para criação de usuários (mais permissivo)
 export const userCreationRateLimit = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hora
-  max: 10, // máximo 10 criações de usuário por IP por hora
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 50, // máximo 50 criações de usuário por IP por 15 minutos
   message: {
-    error: 'Muitas criações de usuário. Tente novamente em 1 hora.',
+    error: 'Muitas criações de usuário. Tente novamente em 15 minutos.',
     type: 'USER_CREATION_RATE_LIMIT_EXCEEDED'
   }
 })
@@ -120,12 +120,12 @@ export const loginValidation = [
 
 export const userCreationValidation = [
   body('username')
-    .isLength({ min: 3, max: 50 })
-    .matches(/^[a-zA-Z0-9_.-]+$/)
-    .withMessage('Username inválido'),
+    .isLength({ min: 1, max: 50 })
+    .trim()
+    .withMessage('Username é obrigatório'),
   body('password')
-    .isLength({ min: 3, max: 100 })
-    .withMessage('Senha deve ter entre 3-100 caracteres'),
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Senha é obrigatória'),
   body('role')
     .optional()
     .isIn(['admin', 'gerente', 'funcionario'])

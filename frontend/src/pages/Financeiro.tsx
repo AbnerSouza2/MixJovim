@@ -46,7 +46,10 @@ export default function Financeiro() {
   const canViewValues = isAdmin || isManager
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date()
-    return today.toISOString().split('T')[0]
+    const year = today.getFullYear()
+    const month = String(today.getMonth() + 1).padStart(2, '0')
+    const day = String(today.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
   })
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
@@ -218,8 +221,12 @@ export default function Financeiro() {
           />
           <button
             onClick={() => {
-              const today = new Date().toISOString().split('T')[0]
-              setSelectedDate(today)
+              const today = new Date()
+              const year = today.getFullYear()
+              const month = String(today.getMonth() + 1).padStart(2, '0')
+              const day = String(today.getDate()).padStart(2, '0')
+              const todayFormatted = `${year}-${month}-${day}`
+              setSelectedDate(todayFormatted)
               setCurrentPage(1)
             }}
             className="btn-gold text-sm"
