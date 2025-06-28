@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Trash2, ClipboardCheck, AlertTriangle, Calendar, Package, User, ShoppingCart, Search, X, Eye } from 'lucide-react'
+import { Plus, Trash2, ClipboardCheck, AlertTriangle, Calendar, Package, User, ShoppingCart, Search, X, Eye, Printer } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 
@@ -210,6 +210,65 @@ export default function Estoque() {
     return new Date(dateString).toLocaleString('pt-BR')
   }
 
+  // Função para imprimir etiqueta do produto
+  const handlePrintLabel = (produto: DetalheProduto) => {
+    const labelContent = `
+      <div style="width: 4cm; height: 3cm; font-family: Arial, sans-serif; font-size: 8px; padding: 2mm; border: 1px solid #000; display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <div style="font-weight: bold; font-size: 9px; margin-bottom: 1mm;">${produto.descricao.substring(0, 25)}${produto.descricao.length > 25 ? '...' : ''}</div>
+          <div style="font-size: 7px; color: #666; margin-bottom: 1mm;">${produto.categoria}</div>
+        </div>
+        <div style="text-align: center;">
+          <div style="font-size: 12px; font-weight: bold; margin-bottom: 1mm;">R$ ${produto.valor_venda.toFixed(2)}</div>
+          <div style="font-size: 6px; color: #666;">MixJovim</div>
+        </div>
+      </div>
+    `
+
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Etiqueta - ${produto.descricao}</title>
+            <style>
+              body { 
+                margin: 0; 
+                padding: 10px; 
+                display: flex;
+                flex-wrap: wrap;
+                gap: 5mm;
+              }
+              @media print {
+                body { margin: 0; padding: 0; }
+                .no-print { display: none; }
+              }
+              .print-button {
+                width: 100%;
+                margin-bottom: 10px;
+                padding: 10px;
+                background: #007bff;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+              }
+            </style>
+          </head>
+          <body>
+            <button class="print-button no-print" onclick="window.print()">Imprimir Etiqueta</button>
+            ${labelContent}
+            <script>
+              // Auto print opcional - descomente se quiser impressão automática
+              // window.onload = function() { window.print(); }
+            </script>
+          </body>
+        </html>
+      `)
+      printWindow.document.close()
+    }
+  }
+
     if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -329,6 +388,7 @@ export default function Estoque() {
                         <th className="text-center py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">Perdas</th>
                         <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm hidden lg:table-cell">Conferente(s)</th>
                         <th className="text-right py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">Valor</th>
+                        <th className="text-center py-2 sm:py-3 px-2 sm:px-4 text-gray-300 text-xs sm:text-sm">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -397,6 +457,16 @@ export default function Estoque() {
                           </td>
                           <td className="py-2 sm:py-3 px-2 sm:px-4 text-right text-white text-xs sm:text-sm">
                             {formatCurrency(produto.valor_venda)} {/* Valor sempre visível para todos */}
+                          </td>
+                          <td className="py-2 sm:py-3 px-2 sm:px-4 text-center">
+                            <button
+                              onClick={() => handlePrintLabel(produto)}
+                              className="inline-flex items-center px-2 py-1 border border-blue-600 rounded-md text-xs font-medium text-blue-300 bg-blue-800/20 hover:bg-blue-700/30 focus:outline-none focus:border-blue-500 transition-colors"
+                              title="Imprimir etiqueta do produto"
+                            >
+                              <Printer className="w-3 h-3 mr-1" />
+                              Etiqueta
+                            </button>
                           </td>
                         </tr>
                       ))}

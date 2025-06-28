@@ -215,6 +215,39 @@ async function createTables() {
       UNIQUE KEY unique_produto (produto_id)
     )
   `)
+
+  // Tabela de clientes
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS clientes (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      nome_completo VARCHAR(255) NOT NULL,
+      cpf VARCHAR(14) NOT NULL UNIQUE,
+      whatsapp VARCHAR(20) NOT NULL,
+      data_inscricao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ativo BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `)
+
+  // Verificar se a coluna cliente_id já existe na tabela sales
+  try {
+    const [salesColumns] = await connection.execute('DESCRIBE sales')
+    const salesColumnInfo = salesColumns as any[]
+    const clienteIdColumn = salesColumnInfo.find(col => col.Field === 'cliente_id')
+    
+    if (!clienteIdColumn) {
+      console.log('🔧 Adicionando coluna cliente_id na tabela sales...')
+      await connection.execute(`
+        ALTER TABLE sales 
+        ADD COLUMN cliente_id INT,
+        ADD FOREIGN KEY (cliente_id) REFERENCES clientes (id) ON DELETE SET NULL
+      `)
+      console.log('✅ Coluna cliente_id adicionada na tabela sales!')
+    }
+  } catch (error) {
+    console.log('⚠️ Erro ao verificar/adicionar cliente_id na tabela sales:', error)
+  }
 }
 
 async function insertInitialData() {

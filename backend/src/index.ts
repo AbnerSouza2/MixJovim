@@ -8,6 +8,7 @@ import productRoutes from './routes/products'
 import salesRoutes from './routes/sales'
 import dashboardRoutes from './routes/dashboard'
 import estoqueRoutes from './routes/estoque'
+import clientesRoutes from './routes/clientes'
 import { 
   generalRateLimit, 
   securityLogger, 
@@ -106,6 +107,7 @@ app.use('/api/products', productRoutes)
 app.use('/api/sales', salesRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/estoque', estoqueRoutes)
+app.use('/api/clientes', clientesRoutes)
 
 // Rota de teste - health check
 app.get('/api/health', (req, res) => {

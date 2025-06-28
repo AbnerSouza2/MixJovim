@@ -16,7 +16,8 @@ import {
   ChevronRight,
   ClipboardCheck,
   Camera,
-  Upload
+  Upload,
+  UserCheck
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
@@ -274,6 +275,12 @@ export default function Layout({ children }: LayoutProps) {
         icon: DollarSign, 
         path: '/financeiro',
         permission: 'financeiro'
+      },
+      { 
+        name: 'Clientes', 
+        icon: UserCheck, 
+        path: '/clientes',
+        permission: 'pdv'
       },
       { 
         name: 'Funcionários', 

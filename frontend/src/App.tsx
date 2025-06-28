@@ -9,6 +9,7 @@ import Funcionarios from './pages/Funcionarios'
 import Estoque from './pages/Estoque'
 import RelatorioVendas from './pages/RelatorioVendas'
 import RelatorioProdutos from './pages/RelatorioProdutos'
+import Clientes from './pages/Clientes'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 
@@ -95,6 +96,16 @@ function AppRoutes() {
           <ProtectedRoute requiredPermission="reports">
             <Layout>
               <RelatorioProdutos />
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/clientes" 
+        element={
+          <ProtectedRoute requiredPermission="pdv">
+            <Layout>
+              <Clientes />
             </Layout>
           </ProtectedRoute>
         } 

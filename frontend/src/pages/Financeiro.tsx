@@ -14,7 +14,8 @@ import {
   CreditCard,
   TrendingUp,
   TrendingDown,
-  Lock
+  Lock,
+  Printer
 } from 'lucide-react'
 
 interface Sale {
@@ -24,6 +25,7 @@ interface Sale {
   payment_method: string
   created_at: string
   vendedor_nome?: string
+  cliente_nome?: string
   items: SaleItem[]
 }
 
@@ -124,6 +126,95 @@ export default function Financeiro() {
   const formatDisplayDate = (dateString: string) => {
     const [year, month, day] = dateString.split('-')
     return `${day}/${month}/${year}`
+  }
+
+  const handlePrintReceipt = (sale: Sale) => {
+    // Determinar o nome do vendedor
+    const vendedorNome = sale.vendedor_nome || 'Sistema'
+
+    const receiptContent = `
+      <div style="font-family: 'Courier New', monospace; font-size: 12px; width: 300px; margin: 0 auto;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="margin: 0;">MIXJOVIM</h2>
+          <div style="margin: 5px 0; font-size: 10px;">
+            <div style="font-weight: bold; margin-bottom: 5px;">--- CUPOM NÃO FISCAL ---</div>
+            <div>Data: ${new Date(sale.created_at).toLocaleDateString('pt-BR')}</div>
+            <div>Hora: ${new Date(sale.created_at).toLocaleTimeString('pt-BR')}</div>
+            <div>Tel: (19) 99304-2090</div>
+            <div>Vendedor: ${vendedorNome}</div>
+            ${sale.cliente_nome ? `<div>Cliente: ${sale.cliente_nome}</div>` : ''}
+          </div>
+        </div>
+        
+        <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 10px 0; margin: 10px 0;">
+          <div style="text-align: center; font-weight: bold;">ITENS DO PEDIDO</div>
+        </div>
+        
+        ${sale.items.map((item) => `
+          <div style="margin-bottom: 10px;">
+            <div style="font-weight: bold; font-size: 11px;">${item.produto_nome.toUpperCase()}</div>
+            <div style="display: flex; justify-content: space-between;">
+              <span>Quant: ${item.quantidade}</span>
+              <span>Total: R$ ${Number(item.subtotal).toFixed(2)}</span>
+            </div>
+          </div>
+        `).join('')}
+        
+        <div style="border-top: 1px dashed #000; padding: 10px 0; margin: 10px 0;">
+          <div style="display: flex; justify-content: space-between;">
+            <span>Subtotal:</span>
+            <span>R$ ${(Number(sale.total) + Number(sale.discount || 0)).toFixed(2)}</span>
+          </div>
+          ${sale.discount > 0 ? `
+            <div style="display: flex; justify-content: space-between;">
+              <span>${sale.cliente_nome ? 'Desconto Cliente:' : 'Desconto:'}</span>
+              <span>- R$ ${Number(sale.discount).toFixed(2)}</span>
+            </div>
+          ` : ''}
+          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; border-top: 1px solid #000; padding-top: 5px; margin-top: 5px;">
+            <span>Total:</span>
+            <span>R$ ${Number(sale.total).toFixed(2)}</span>
+          </div>
+        </div>
+        
+        <div style="text-align: center; background: #000; color: #fff; padding: 10px; margin: 10px 0;">
+          <div style="font-weight: bold;">${formatPaymentMethod(sale.payment_method)}</div>
+        </div>
+        
+                 <div style="text-align: center; margin-top: 20px; font-size: 10px;">
+           <div style="margin-top: 10px;">Obrigado e volte sempre!</div>
+         </div>
+      </div>
+    `
+
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Cupom Não Fiscal - Venda #${sale.id}</title>
+            <style>
+              body { margin: 0; padding: 20px; }
+              @media print {
+                body { margin: 0; padding: 0; }
+              }
+            </style>
+          </head>
+          <body>
+            ${receiptContent}
+            <script>
+              window.onload = function() {
+                window.print();
+                window.close();
+              }
+            </script>
+          </body>
+        </html>
+      `)
+      printWindow.document.close()
+    }
+
+    toast.success('Cupom reenviado para impressão!')
   }
 
   // Se não for admin, mostrar tela de acesso restrito
@@ -307,13 +398,22 @@ export default function Financeiro() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                        <button
-                          onClick={() => handleViewDetails(sale.id)}
-                          className="inline-flex items-center px-3 py-1 border border-gray-600 rounded-md text-xs font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 focus:outline-none focus:border-mixjovim-gold transition-colors"
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          Detalhes
-                        </button>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleViewDetails(sale.id)}
+                            className="inline-flex items-center px-3 py-1 border border-gray-600 rounded-md text-xs font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 focus:outline-none focus:border-mixjovim-gold transition-colors"
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            Detalhes
+                          </button>
+                          <button
+                            onClick={() => handlePrintReceipt(sale)}
+                            className="inline-flex items-center px-3 py-1 border border-green-600 rounded-md text-xs font-medium text-green-300 bg-green-800/20 hover:bg-green-700/30 focus:outline-none focus:border-green-500 transition-colors"
+                          >
+                            <Printer className="w-4 h-4 mr-1" />
+                            Cupom
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -482,12 +582,21 @@ export default function Financeiro() {
                 <Eye className="w-6 h-6 mr-2" />
                 Detalhes da Venda #{selectedSale.id}
               </h3>
-              <button
-                onClick={() => setShowDetailModal(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X className="w-6 h-6" />
-              </button>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => handlePrintReceipt(selectedSale)}
+                  className="inline-flex items-center px-4 py-2 border border-green-600 rounded-lg text-sm font-medium text-green-300 bg-green-800/20 hover:bg-green-700/30 focus:outline-none focus:border-green-500 transition-colors"
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Imprimir Cupom
+                </button>
+                <button
+                  onClick={() => setShowDetailModal(false)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
             </div>
 
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
@@ -511,6 +620,12 @@ export default function Financeiro() {
                       <span className="text-gray-400">Vendedor:</span>
                       <span className="text-mixjovim-gold font-medium">{selectedSale.vendedor_nome || 'Sistema'}</span>
                     </div>
+                    {selectedSale.cliente_nome && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Cliente:</span>
+                        <span className="text-blue-400 font-medium">{selectedSale.cliente_nome}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-gray-400">Subtotal:</span>
                       <span className="text-white">R$ {(Number(selectedSale.total || 0) + Number(selectedSale.discount || 0)).toFixed(2)}</span>

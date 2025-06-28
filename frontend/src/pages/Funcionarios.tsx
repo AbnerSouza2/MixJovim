@@ -384,29 +384,6 @@ export default function Funcionarios() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={async () => {
-              try {
-                console.log('🧪 Testando criação simples...')
-                const testUser = {
-                  username: `teste${Date.now()}`,
-                  password: '123456',
-                  role: 'funcionario'
-                }
-                
-                await api.post('/auth/users/test', testUser)
-                toast.success('Usuário de teste criado!')
-                loadUsers()
-              } catch (error: any) {
-                console.error('Erro no teste:', error)
-                toast.error(error.response?.data?.error || 'Erro no teste')
-              }
-            }}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center text-sm"
-          >
-            🧪 Teste Rápido
-          </button>
-          
-          <button
             onClick={openModal}
             className="btn-gold flex items-center"
           >
@@ -454,14 +431,23 @@ export default function Funcionarios() {
                   <tr key={user.id} className="hover:bg-gray-800">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="w-10 h-10 bg-mixjovim-gold rounded-full flex items-center justify-center">
-                          <span className="text-sm font-bold text-gray-900">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          user.role === 'admin' ? 'bg-red-600' : 
+                          user.role === 'gerente' ? 'bg-mixjovim-gold' : 
+                          'bg-blue-600'
+                        }`}>
+                          <span className={`text-sm font-bold ${
+                            user.role === 'gerente' ? 'text-gray-900' : 'text-white'
+                          }`}>
                             {user.username.charAt(0).toUpperCase()}
                           </span>
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-white">
                             {user.username}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            Avatar com iniciais
                           </div>
                         </div>
                       </div>

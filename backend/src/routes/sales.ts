@@ -7,7 +7,7 @@ const router = Router()
 // Criar nova venda
 router.post('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const { produtos, total, discount = 0, payment_method = 'dinheiro' } = req.body
+    const { produtos, total, discount = 0, payment_method = 'dinheiro', cliente_id = null } = req.body
 
     if (!produtos || produtos.length === 0) {
       return res.status(400).json({ error: 'Lista de produtos é obrigatória' })
@@ -15,14 +15,40 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
 
     const db = getDatabase()
 
+    // Verificar se cliente está ativo (caso tenha sido selecionado)
+    let clienteAtivo = null
+    if (cliente_id) {
+      const [clienteRows] = await db.execute(
+        'SELECT id, nome_completo, data_inscricao FROM clientes WHERE id = ?',
+        [cliente_id]
+      )
+      
+      const clientes = clienteRows as any[]
+      if (clientes.length > 0) {
+        const cliente = clientes[0]
+        const hoje = new Date()
+        const inscricao = new Date(cliente.data_inscricao)
+        const umAnoEmMs = 365 * 24 * 60 * 60 * 1000
+        const isAtivo = (hoje.getTime() - inscricao.getTime()) < umAnoEmMs
+        
+        if (isAtivo) {
+          clienteAtivo = cliente
+        } else {
+          return res.status(400).json({ error: 'Cliente selecionado não está mais ativo' })
+        }
+      } else {
+        return res.status(404).json({ error: 'Cliente não encontrado' })
+      }
+    }
+
     // Iniciar transação
     await db.query('START TRANSACTION')
 
     try {
       // Criar a venda
       const [saleResult] = await db.execute(
-        'INSERT INTO sales (total, discount, payment_method, user_id) VALUES (?, ?, ?, ?)',
-        [total, discount, payment_method, req.user?.id]
+        'INSERT INTO sales (total, discount, payment_method, user_id, cliente_id) VALUES (?, ?, ?, ?, ?)',
+        [total, discount, payment_method, req.user?.id, cliente_id]
       )
 
       const insertResult = saleResult as any
@@ -131,11 +157,13 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
 
     // Buscar vendas com paginação
     const [salesRows] = await db.execute(
-      `SELECT s.id, s.total, s.discount, s.payment_method, s.user_id,
+      `SELECT s.id, s.total, s.discount, s.payment_method, s.user_id, s.cliente_id,
               DATE_FORMAT(s.created_at, '%Y-%m-%d %H:%i:%s') as created_at,
-              u.username as vendedor_nome
+              u.username as vendedor_nome,
+              c.nome_completo as cliente_nome
        FROM sales s
        LEFT JOIN users u ON s.user_id = u.id
+       LEFT JOIN clientes c ON s.cliente_id = c.id
        WHERE s.created_at >= ? AND s.created_at <= ?
        ORDER BY s.created_at DESC
        LIMIT ? OFFSET ?`,
@@ -163,6 +191,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
         payment_method: sale.payment_method || 'dinheiro',
         created_at: sale.created_at,
         vendedor_nome: sale.vendedor_nome || 'Sistema',
+        cliente_nome: sale.cliente_nome || null,
         items
       })
     }
@@ -192,11 +221,13 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res) => {
 
     // Buscar venda com data formatada
     const [saleRows] = await db.execute(
-      `SELECT s.id, s.total, s.discount, s.payment_method, s.user_id,
+      `SELECT s.id, s.total, s.discount, s.payment_method, s.user_id, s.cliente_id,
               DATE_FORMAT(s.created_at, '%Y-%m-%d %H:%i:%s') as created_at,
-              u.username as vendedor_nome
+              u.username as vendedor_nome,
+              c.nome_completo as cliente_nome
        FROM sales s
        LEFT JOIN users u ON s.user_id = u.id
+       LEFT JOIN clientes c ON s.cliente_id = c.id
        WHERE s.id = ?`,
       [id]
     )

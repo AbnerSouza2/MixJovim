@@ -24,6 +24,13 @@ interface CartItem {
   subtotal: number
 }
 
+interface Cliente {
+  id: number
+  nome_completo: string
+  cpf: string
+  dias_para_vencer: number
+}
+
 export default function PDV() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -46,21 +53,30 @@ export default function PDV() {
   const [discountValue, setDiscountValue] = useState('')
   const [receivedValue, setReceivedValue] = useState('')
   
+  // Estados para clientes
+  const [clientes, setClientes] = useState<Cliente[]>([])
+  const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null)
+  const [clienteDiscount, setClienteDiscount] = useState(0)
+  
   const barcodeRef = useRef<HTMLInputElement>(null)
 
   // Calcular totais
   const subtotal = cart.reduce((sum, item) => sum + item.subtotal, 0)
   
   // Calcular desconto baseado no tipo
-  const discountAmount = discountValue ? 
+  const manualDiscountAmount = discountValue ? 
     (discountType === 'percent' ? (subtotal * Number(discountValue)) / 100 : Number(discountValue))
     : 0
+  
+  // Desconto total = desconto manual + desconto do cliente
+  const discountAmount = manualDiscountAmount + clienteDiscount
   
   const total = Math.max(0, subtotal - discountAmount)
   const change = receivedValue ? Math.max(0, Number(receivedValue) - total) : 0
 
   useEffect(() => {
     loadProducts()
+    loadClientes()
     // Focar no campo de código de barras ao carregar
     if (barcodeRef.current) {
       barcodeRef.current.focus()
@@ -84,6 +100,16 @@ export default function PDV() {
       toast.error('Erro ao carregar produtos do estoque')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadClientes = async () => {
+    try {
+      const response = await api.get('/clientes/ativos/lista')
+      setClientes(response.data || [])
+    } catch (error) {
+      console.error('Erro ao carregar clientes:', error)
+      // Não exibir erro para não incomodar o usuário, apenas log
     }
   }
 
@@ -199,6 +225,29 @@ export default function PDV() {
     toast.success('Item removido do carrinho')
   }
 
+  const handleClienteChange = (clienteId: string) => {
+    if (clienteId === '0' || clienteId === '') {
+      // Nenhum cliente selecionado
+      setSelectedCliente(null)
+      setClienteDiscount(0)
+    } else {
+      const cliente = clientes.find(c => c.id === Number(clienteId))
+      if (cliente) {
+        setSelectedCliente(cliente)
+        // Aplicar 10% de desconto do subtotal
+        setClienteDiscount(subtotal * 0.1)
+        toast.success(`Cliente ${cliente.nome_completo} selecionado! Desconto de 10% aplicado.`)
+      }
+    }
+  }
+
+  // Recalcular desconto do cliente quando o subtotal mudar
+  useEffect(() => {
+    if (selectedCliente) {
+      setClienteDiscount(subtotal * 0.1)
+    }
+  }, [subtotal, selectedCliente])
+
   const openPaymentModal = () => {
     if (cart.length === 0) {
       toast.error('Carrinho vazio')
@@ -222,7 +271,8 @@ export default function PDV() {
         discount: discountAmount,
         payment_method: paymentMethod === 'cartao_credito' && installments > 1 
           ? `${paymentMethod}_${installments}x` 
-          : paymentMethod
+          : paymentMethod,
+        cliente_id: selectedCliente ? selectedCliente.id : null
       }
 
       console.log('Enviando dados da venda:', saleData)
@@ -237,20 +287,23 @@ export default function PDV() {
         total,
         payment_method: paymentMethod,
         installments: paymentMethod === 'cartao_credito' ? installments : 1,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        cliente_nome: selectedCliente ? selectedCliente.nome_completo : null
       }
       
       setLastSale(saleForReceipt)
       
-      // Limpar carrinho
-      setCart([])
-      setDiscountValue('')
-      setReceivedValue('')
-      setSelectedProduct(null)
-      setSearchCode('')
-      setPaymentMethod('dinheiro')
-      setInstallments(1)
-      setShowPaymentModal(false)
+              // Limpar carrinho
+        setCart([])
+        setDiscountValue('')
+        setReceivedValue('')
+        setSelectedProduct(null)
+        setSearchCode('')
+        setPaymentMethod('dinheiro')
+        setInstallments(1)
+        setSelectedCliente(null)
+        setClienteDiscount(0)
+        setShowPaymentModal(false)
       
       // Recarregar produtos para atualizar estoque
       await loadProducts()
@@ -284,6 +337,7 @@ export default function PDV() {
             <div>Hora: ${new Date(lastSale.created_at).toLocaleTimeString('pt-BR')}</div>
             <div>Tel: (19) 99304-2090</div>
             <div>Vendedor: ${vendedorNome}</div>
+            ${lastSale.cliente_nome ? `<div>Cliente: ${lastSale.cliente_nome}</div>` : ''}
           </div>
         </div>
         
@@ -308,7 +362,7 @@ export default function PDV() {
           </div>
           ${lastSale.discount > 0 ? `
             <div style="display: flex; justify-content: space-between;">
-              <span>Desconto:</span>
+              <span>${lastSale.cliente_nome ? 'Desconto Cliente:' : 'Desconto:'}</span>
               <span>- R$ ${lastSale.discount.toFixed(2)}</span>
             </div>
           ` : ''}
@@ -614,9 +668,21 @@ export default function PDV() {
                   <span>Subtotal:</span>
                   <span>R$ {subtotal.toFixed(2)}</span>
                 </div>
-                {discountAmount > 0 && (
+                {manualDiscountAmount > 0 && (
                   <div className="flex justify-between text-red-400">
-                    <span>Desconto:</span>
+                    <span>Desconto Manual:</span>
+                    <span>- R$ {manualDiscountAmount.toFixed(2)}</span>
+                  </div>
+                )}
+                {clienteDiscount > 0 && (
+                  <div className="flex justify-between text-green-400">
+                    <span>Desconto Cliente (10%):</span>
+                    <span>- R$ {clienteDiscount.toFixed(2)}</span>
+                  </div>
+                )}
+                {discountAmount > 0 && manualDiscountAmount > 0 && clienteDiscount > 0 && (
+                  <div className="flex justify-between text-yellow-400 border-t border-gray-700 pt-1">
+                    <span>Total Descontos:</span>
                     <span>- R$ {discountAmount.toFixed(2)}</span>
                   </div>
                 )}
@@ -650,6 +716,36 @@ export default function PDV() {
             </div>
 
             <div className="p-6 space-y-4">
+              {/* Seleção de Cliente */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Selecionar Cliente (Desconto de 10%)
+                </label>
+                <select
+                  value={selectedCliente ? selectedCliente.id.toString() : '0'}
+                  onChange={(e) => handleClienteChange(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-mixjovim-gold"
+                >
+                  <option value="0">Nenhum cliente</option>
+                  {clientes.map((cliente) => (
+                    <option key={cliente.id} value={cliente.id}>
+                      {cliente.nome_completo} - {cliente.cpf}
+                      {cliente.dias_para_vencer <= 30 && ` (Expira em ${cliente.dias_para_vencer} dias)`}
+                    </option>
+                  ))}
+                </select>
+                {selectedCliente && (
+                  <div className="mt-2 p-2 bg-green-800/20 border border-green-600/30 rounded-lg">
+                    <p className="text-green-400 text-sm font-medium">
+                      ✓ Cliente selecionado: {selectedCliente.nome_completo}
+                    </p>
+                    <p className="text-green-300 text-xs">
+                      Desconto de 10% aplicado: R$ {clienteDiscount.toFixed(2)}
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Forma de Pagamento

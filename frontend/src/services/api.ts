@@ -157,4 +157,24 @@ export const userApi = {
   
   deletePhoto: () =>
     api.delete('/auth/photo'),
+}
+
+export const clientesApi = {
+  getAll: (page = 1, limit = 20, search = '') =>
+    api.get(`/clientes?page=${page}&limit=${limit}&search=${search}`),
+  
+  getById: (id: number) =>
+    api.get(`/clientes/${id}`),
+  
+  getAtivos: () =>
+    api.get('/clientes/ativos/lista'),
+  
+  create: (cliente: any) =>
+    api.post('/clientes', cliente),
+  
+  update: (id: number, cliente: any) =>
+    api.put(`/clientes/${id}`, cliente),
+  
+  delete: (id: number) =>
+    api.delete(`/clientes/${id}`),
 } 
