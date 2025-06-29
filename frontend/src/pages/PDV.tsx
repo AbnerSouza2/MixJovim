@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import toast from 'react-hot-toast'
@@ -34,11 +34,9 @@ interface Cliente {
 export default function PDV() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const [products, setProducts] = useState<Product[]>([])
   const [allProducts, setAllProducts] = useState<Product[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
   const [searchCode, setSearchCode] = useState('')
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(false)
   const [showProductModal, setShowProductModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
