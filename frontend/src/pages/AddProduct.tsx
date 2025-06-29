@@ -15,8 +15,7 @@ import {
   AlertTriangle,
   Scan,
   User,
-  Shuffle,
-  Eye
+  Shuffle
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { productsApi, Product } from '../services/api'
@@ -32,12 +31,6 @@ interface ProductForm {
   categoria: string
   codigo_barras_1?: string
   codigo_barras_2?: string
-}
-
-interface ScannedProduct {
-  product: Product
-  scannedQuantity: number
-  timestamp: Date
 }
 
 export default function AddProduct() {

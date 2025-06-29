@@ -5,24 +5,18 @@ import {
   Package, 
   Calendar,
   BarChart3,
-  PieChart,
   Trophy,
   Medal,
   Award
 } from 'lucide-react'
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
-  PieChart as RechartsPie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
-  Legend
+  ResponsiveContainer
 } from 'recharts'
 import { dashboardApi, DashboardStats, RankingVendas, userApi } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'

@@ -37,6 +37,7 @@ export default function PDV() {
   const [allProducts, setAllProducts] = useState<Product[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
   const [searchCode, setSearchCode] = useState('')
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(false)
   const [showProductModal, setShowProductModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
