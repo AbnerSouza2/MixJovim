@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import toast from 'react-hot-toast'
-import { ShoppingCart, X, Search, Package, ArrowLeft, CreditCard, Calendar, Plus, Minus, Percent, DollarSign } from 'lucide-react'
+import { ShoppingCart, X, Search, Package, ArrowLeft, CreditCard, Calendar, Plus, Minus } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 interface Product {
@@ -37,7 +37,6 @@ export default function PDV() {
   const [allProducts, setAllProducts] = useState<Product[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
   const [searchCode, setSearchCode] = useState('')
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(false)
   const [showProductModal, setShowProductModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -114,7 +113,6 @@ export default function PDV() {
 
   const searchByBarcode = (code: string) => {
     if (!code.trim()) {
-      setSelectedProduct(null)
       return
     }
 
@@ -128,7 +126,6 @@ export default function PDV() {
       addProductToCart(product)
       toast.success(`Produto adicionado: ${product.descricao}`)
     } else {
-      setSelectedProduct(null)
       toast.error('Produto não encontrado no estoque')
     }
   }
@@ -178,8 +175,7 @@ export default function PDV() {
       setCart([...cart, cartItem])
     }
     
-    // Limpar seleção e pesquisa
-    setSelectedProduct(null)
+    // Limpar pesquisa
     setSearchCode('')
     
     // Focar novamente no código de barras
@@ -296,7 +292,6 @@ export default function PDV() {
         setCart([])
         setDiscountValue('')
         setReceivedValue('')
-        setSelectedProduct(null)
         setSearchCode('')
         setPaymentMethod('dinheiro')
         setInstallments(1)

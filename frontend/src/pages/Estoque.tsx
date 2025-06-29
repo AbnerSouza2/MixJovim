@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, ClipboardCheck, AlertTriangle, Calendar, Package, User, ShoppingCart, Search, X, Eye, Printer } from 'lucide-react'
+import { Trash2, ClipboardCheck, AlertTriangle, Package, User, Search, X, Printer } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 

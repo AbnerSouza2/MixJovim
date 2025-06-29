@@ -118,8 +118,6 @@ export default function Dashboard() {
     return type === 'currency' ? formatCurrency(value) : value.toString()
   }
 
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444']
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -244,7 +242,7 @@ export default function Dashboard() {
                     boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)'
                   }}
                   labelStyle={{ color: '#f3f4f6', fontWeight: 'bold' }}
-                  formatter={(value: number, name) => [
+                  formatter={(value: number) => [
                     formatCurrency(value), 
                     'Faturamento'
                   ]}

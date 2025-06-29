@@ -4,7 +4,6 @@ import { useAuth } from '../contexts/AuthContext'
 import toast from 'react-hot-toast'
 import { 
   DollarSign, 
-  Search, 
   Eye, 
   Calendar,
   ChevronLeft,
