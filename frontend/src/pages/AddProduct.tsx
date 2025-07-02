@@ -580,19 +580,19 @@ export default function AddProduct() {
           <div style="font-family: Arial, sans-serif; width: 300px; height: 220px; margin: 0; padding: 8px; text-align: center; box-sizing: border-box; background: white; display: flex; flex-direction: column; justify-content: space-between; flex-shrink: 0;">
             
             <!-- Nome do Produto -->
-            <div style="font-weight: bold; font-size: 15px; line-height: 1.1; height: 50px; overflow: hidden; display: flex; align-items: center; justify-content: center; word-wrap: break-word; hyphens: auto; color: #333; text-align: center; padding: 2px; margin-bottom: 2px;">
+            <div style="font-weight: bold; font-size: 17px; line-height: 1.1; height: 50px; overflow: hidden; display: flex; align-items: center; justify-content: center; word-wrap: break-word; hyphens: auto; color: #333; text-align: center; padding: 2px; margin-bottom: 2px;">
               ${selectedProduct.descricao.toUpperCase()}
             </div>
             
             <!-- Preços - DESTAQUE PRINCIPAL -->
             <div style="margin: 4px 0; padding: 8px 8px;">
-              <div style="font-size: 16px; font-weight: bold; margin-bottom: 2px; color: #666;">
+              <div style="font-size: 18px; font-weight: bold; margin-bottom: 2px; color: #666;">
                 DE R$ ${Number(selectedProduct.valor_unitario || 0).toFixed(2).replace('.', ',')}
               </div>
-              <div style="font-weight: 900; font-size: 34px; color: #000; margin-bottom: 2px; letter-spacing: 1px;">
+              <div style="font-weight: 900; font-size: 36px; color: #000; margin-bottom: 2px; letter-spacing: 1px;">
                 R$ ${Number(selectedProduct.valor_venda || 0).toFixed(2).replace('.', ',')}
               </div>
-              <div style="font-size: 14px; font-weight: bold; color: #e74c3c; padding: 2px 8px; border-radius: 10px; display: inline-block;">
+              <div style="font-size: 16px; font-weight: bold; color: #e74c3c; padding: 2px 8px; border-radius: 10px; display: inline-block;">
                 OFERTA ESPECIAL
               </div>
             </div>
