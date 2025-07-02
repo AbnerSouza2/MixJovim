@@ -637,7 +637,6 @@ export default function AddProduct() {
                 align-items: flex-start;
               }
               .page-container {
-                min-height: 100vh;
                 display: flex;
                 flex-direction: column;
                 justify-content: flex-start;
@@ -662,16 +661,14 @@ export default function AddProduct() {
                   size: A4;
                 }
                 .page-container {
-                  page-break-after: always;
-                  min-height: 100vh;
                   display: flex;
                   flex-direction: column;
                   justify-content: flex-start;
                   align-items: center;
                   padding: 20px 0;
                 }
-                .page-container:last-child {
-                  page-break-after: avoid;
+                .page-container:not(:last-child) {
+                  page-break-after: always;
                 }
               }
             </style>
