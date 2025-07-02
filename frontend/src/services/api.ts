@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: 'http://localhost:5001/api',
+  baseURL: '/api',
   timeout: 30000, // Aumentado para 30 segundos
   headers: {
     'Content-Type': 'application/json',
@@ -152,8 +152,23 @@ export const userApi = {
       headers: { 'Content-Type': 'multipart/form-data' }
     }),
   
-  getPhoto: (userId: number) =>
-    api.get(`/auth/photo/${userId}`, { responseType: 'blob' }),
+  getPhoto: async (userId: number) => {
+    try {
+      const response = await api.get(`/auth/photo/${userId}`, { responseType: 'blob' })
+      
+      // Verificar se é realmente uma imagem
+      if (response.data && response.data.type && response.data.type.startsWith('image/')) {
+        return URL.createObjectURL(response.data)
+      }
+      
+      // Se não é uma imagem válida, retornar null
+      return null
+    } catch (error: any) {
+      // Se der erro 404 ou qualquer outro, retornar null
+      console.log(`Foto não encontrada para usuário ${userId}`)
+      return null
+    }
+  },
   
   deletePhoto: () =>
     api.delete('/auth/photo'),

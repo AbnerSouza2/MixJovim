@@ -61,17 +61,13 @@ export default function Dashboard() {
     if (!userId) return null
     
     try {
-      const response = await userApi.getPhoto(userId)
-      if (response.data && response.data.size > 0) {
-        const photoBlob = new Blob([response.data], { type: 'image/jpeg' })
-        const photoUrl = URL.createObjectURL(photoBlob)
-        return photoUrl
-      }
+      const photoUrl = await userApi.getPhoto(userId)
+      return photoUrl // Agora retorna string|null diretamente
     } catch (error) {
       // Se não encontrar foto, retorna null
       console.log(`Foto não encontrada para usuário ${userId}`)
+      return null
     }
-    return null
   }
 
   const loadStats = async () => {

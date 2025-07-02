@@ -67,21 +67,17 @@ export default function Layout({ children }: LayoutProps) {
     console.log(`📸 [LOAD PHOTO] Carregando foto para usuário ${user.id}`)
     
     try {
-      const response = await userApi.getPhoto(user.id)
-      console.log('📸 [LOAD PHOTO] Resposta recebida:', response.data)
+      const photoUrl = await userApi.getPhoto(user.id)
       
-      if (response.data && response.data.size > 0) {
-        const photoBlob = new Blob([response.data], { type: 'image/jpeg' })
-        const photoUrl = URL.createObjectURL(photoBlob)
+      if (photoUrl) {
         setUserPhoto(photoUrl)
         console.log('✅ [LOAD PHOTO] Foto carregada com sucesso')
       } else {
-        console.log('⚠️ [LOAD PHOTO] Resposta vazia ou inválida')
+        console.log('⚠️ [LOAD PHOTO] Usuário sem foto - usando inicial')
         setUserPhoto(null)
       }
     } catch (error: any) {
-      console.log('❌ [LOAD PHOTO] Erro ao carregar foto:', error.response?.status, error.response?.data)
-      // Se não encontrar foto, mantém null
+      console.log('❌ [LOAD PHOTO] Erro ao carregar foto:', error)
       setUserPhoto(null)
     }
   }
