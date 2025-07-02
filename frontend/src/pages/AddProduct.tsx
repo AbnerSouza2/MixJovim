@@ -632,7 +632,7 @@ export default function AddProduct() {
               .label-row {
                 display: flex;
                 gap: 10px;
-                margin-bottom: 10px;
+                margin-bottom: 25px;
                 align-items: flex-start;
                 justify-content: center;
               }
