@@ -582,7 +582,7 @@ export default function AddProduct() {
         // Uma etiqueta por linha
         labelGrid += `<div class="label-row">`
         labelGrid += `
-          <div style="font-family: Arial, sans-serif; width: 300px; height: 220px; margin: 0; padding: 8px; text-align: center; box-sizing: border-box; background: white; display: flex; flex-direction: column; justify-content: space-between; flex-shrink: 0;">
+          <div style="font-family: Arial, sans-serif; width: 80mm; height: 100mm; margin: 0; padding: 8px; text-align: center; box-sizing: border-box; background: white; display: flex; flex-direction: column; justify-content: space-between; flex-shrink: 0;">
             
             <!-- Nome do Produto -->
             <div style="font-weight: bold; font-size: 17px; line-height: 1.1; height: 50px; overflow: hidden; display: flex; align-items: center; justify-content: center; word-wrap: break-word; hyphens: auto; color: #333; text-align: center; padding: 2px; margin-bottom: 2px;">
@@ -604,7 +604,7 @@ export default function AddProduct() {
             
             <!-- Código de Barras - Movido para baixo -->
             <div style="display: flex; justify-content: center; align-items: center; height: 45px; margin-top: 0px;">
-              <canvas id="barcode${labelIndex}" style="max-width: 250px; height: 35px;"></canvas>
+              <canvas id="barcode${labelIndex}" style="max-width: 70mm; height: 35px;"></canvas>
             </div>
             
           </div>
@@ -652,23 +652,30 @@ export default function AddProduct() {
               }
               @media print {
                 body { 
-                  margin: 5mm; 
+                  margin: 0; 
                   padding: 0; 
                   background: white; 
                 }
                 @page { 
-                  margin: 5mm; 
-                  size: A4;
+                  margin: 0;
+                  size: 80mm 100mm; /* Tamanho da etiqueta */
                 }
                 .page-container {
+                  width: 80mm;
+                  height: 100mm;
                   display: flex;
                   flex-direction: column;
-                  justify-content: flex-start;
+                  justify-content: center;
                   align-items: center;
-                  padding: 20px 0;
-                }
-                .page-container:not(:last-child) {
+                  padding: 0;
+                  margin: 0;
                   page-break-after: always;
+                }
+                .page-container:last-child {
+                  page-break-after: avoid;
+                }
+                .label-row {
+                  margin-bottom: 0;
                 }
               }
             </style>
