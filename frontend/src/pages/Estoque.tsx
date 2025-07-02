@@ -213,13 +213,13 @@ export default function Estoque() {
   // Função para imprimir etiqueta do produto
   const handlePrintLabel = (produto: DetalheProduto) => {
     const labelContent = `
-      <div style="width: 4cm; height: 3cm; font-family: Arial, sans-serif; padding: 2mm; display: flex; flex-direction: column; justify-content: space-between;">
+      <div style="width: 80mm; height: 100mm; font-family: Arial, sans-serif; padding: 3mm; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; background: white; margin: 0;">
         <div>
-          <div style="font-weight: bold; font-size: 16px; margin-bottom: 0.5mm; line-height: 1.1;">${produto.descricao.substring(0, 25)}${produto.descricao.length > 25 ? '...' : ''}</div>
-          <div style="font-size: 14px; color: #666; margin-bottom: 2mm;">${produto.categoria}</div>
+          <div style="font-weight: bold; font-size: 16px; margin-bottom: 3mm; line-height: 1.1; text-align: center;">${produto.descricao.substring(0, 25)}${produto.descricao.length > 25 ? '...' : ''}</div>
+          <div style="font-size: 14px; color: #666; margin-bottom: 3mm; text-align: center;">${produto.categoria}</div>
         </div>
-        <div style="text-align: center; margin-top: auto; margin-bottom: 2px;">
-          <div style="font-size: 20px; font-weight: bold; margin-bottom: 0.5mm;">R$ ${produto.valor_venda.toFixed(2)}</div>
+        <div style="text-align: center; margin-top: auto; margin-bottom: 3mm;">
+          <div style="font-size: 20px; font-weight: bold; margin-bottom: 2mm;">R$ ${produto.valor_venda.toFixed(2)}</div>
           <div style="font-size: 12px; color: #666;">MixJovim</div>
         </div>
       </div>
@@ -234,14 +234,24 @@ export default function Estoque() {
             <style>
               body { 
                 margin: 0; 
-                padding: 10px; 
-                display: flex;
-                flex-wrap: wrap;
-                gap: 5mm;
+                padding: 0; 
+                background: white;
+                font-family: Arial, sans-serif;
               }
               @media print {
-                body { margin: 0; padding: 0; }
-                .no-print { display: none; }
+                body { 
+                  margin: 0; 
+                  padding: 0; 
+                  background: white;
+                }
+                @page { 
+                  margin: 0; 
+                  padding: 0;
+                  size: 80mm 100mm;
+                }
+                .no-print { 
+                  display: none; 
+                }
               }
               .print-button {
                 width: 100%;

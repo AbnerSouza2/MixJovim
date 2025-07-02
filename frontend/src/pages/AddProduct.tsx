@@ -562,49 +562,44 @@ export default function AddProduct() {
 
     const barcode = selectedProduct.codigo_barras_1 || selectedProduct.codigo_barras_2 || `${selectedProduct.id}`.padStart(13, '0')
     
-    // Calcular quantas etiquetas por linha (máximo 2 para caber bem)
-    const labelsPerRow = Math.min(labelQuantity, 2)
-    const totalRows = Math.ceil(labelQuantity / labelsPerRow)
+    // Uma etiqueta por linha para impressoras de etiquetas
+    const labelsPerRow = 1
+    const totalRows = labelQuantity
     
     let labelGrid = ''
     
     for (let row = 0; row < totalRows; row++) {
-      const labelsInThisRow = Math.min(labelsPerRow, labelQuantity - (row * labelsPerRow))
-      
-      // Sempre usar flex-start para manter tamanho padrão das etiquetas
       labelGrid += `<div class="label-row">`
       
-      for (let col = 0; col < labelsInThisRow; col++) {
-        const labelIndex = (row * labelsPerRow) + col
-        labelGrid += `
-          <div style="font-family: Arial, sans-serif; width: 300px; height: 220px; margin: 0; padding: 8px; text-align: center; box-sizing: border-box; background: white; display: flex; flex-direction: column; justify-content: space-between; flex-shrink: 0;">
-            
-            <!-- Nome do Produto -->
-            <div style="font-weight: bold; font-size: 17px; line-height: 1.1; height: 50px; overflow: hidden; display: flex; align-items: center; justify-content: center; word-wrap: break-word; hyphens: auto; color: #333; text-align: center; padding: 2px; margin-bottom: 2px;">
-              ${selectedProduct.descricao.toUpperCase()}
-            </div>
-            
-            <!-- Preços - DESTAQUE PRINCIPAL -->
-            <div style="margin: 4px 0; padding: 8px 8px;">
-              <div style="font-size: 18px; font-weight: bold; margin-bottom: 2px; color: #666;">
-                DE R$ ${Number(selectedProduct.valor_unitario || 0).toFixed(2).replace('.', ',')}
-              </div>
-              <div style="font-weight: 900; font-size: 36px; color: #000; margin-bottom: 2px; letter-spacing: 1px;">
-                R$ ${Number(selectedProduct.valor_venda || 0).toFixed(2).replace('.', ',')}
-              </div>
-              <div style="font-size: 16px; font-weight: bold; color: #e74c3c; padding: 2px 8px; border-radius: 10px; display: inline-block;">
-                OFERTA ESPECIAL
-              </div>
-            </div>
-            
-            <!-- Código de Barras - Movido para baixo -->
-            <div style="display: flex; justify-content: center; align-items: center; height: 45px; margin-top: 0px;">
-              <canvas id="barcode${labelIndex}" style="max-width: 250px; height: 35px;"></canvas>
-            </div>
-            
+      const labelIndex = row
+      labelGrid += `
+        <div style="font-family: Arial, sans-serif; width: 80mm; height: 100mm; margin: 0; padding: 3mm; text-align: center; box-sizing: border-box; background: white; display: flex; flex-direction: column; justify-content: space-between; flex-shrink: 0; page-break-after: always;">
+          
+          <!-- Nome do Produto -->
+          <div style="font-weight: bold; font-size: 17px; line-height: 1.1; height: auto; overflow: hidden; display: flex; align-items: center; justify-content: center; word-wrap: break-word; hyphens: auto; color: #333; text-align: center; padding: 2px; margin-bottom: 3mm;">
+            ${selectedProduct.descricao.toUpperCase()}
           </div>
-        `
-      }
+          
+          <!-- Preços - DESTAQUE PRINCIPAL -->
+          <div style="margin: 2mm 0; padding: 3mm 2mm;">
+            <div style="font-size: 18px; font-weight: bold; margin-bottom: 2mm; color: #666;">
+              DE R$ ${Number(selectedProduct.valor_unitario || 0).toFixed(2).replace('.', ',')}
+            </div>
+            <div style="font-weight: 900; font-size: 36px; color: #000; margin-bottom: 2mm; letter-spacing: 1px;">
+              R$ ${Number(selectedProduct.valor_venda || 0).toFixed(2).replace('.', ',')}
+            </div>
+            <div style="font-size: 16px; font-weight: bold; color: #e74c3c; padding: 1mm 3mm; border-radius: 3mm; display: inline-block;">
+              OFERTA ESPECIAL
+            </div>
+          </div>
+          
+          <!-- Código de Barras -->
+          <div style="display: flex; justify-content: center; align-items: center; height: 15mm; margin-top: auto;">
+            <canvas id="barcode${labelIndex}" style="max-width: 70mm; height: 12mm;"></canvas>
+          </div>
+          
+        </div>
+      `
       
       labelGrid += '</div>'
     }
@@ -618,32 +613,45 @@ export default function AddProduct() {
             <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
             <style>
               body { 
-                margin: 10px; 
+                margin: 0; 
                 padding: 0;
                 font-family: Arial, sans-serif;
-                background: #f5f5f5;
+                background: white;
               }
               .label-container {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 10px;
-                align-items: flex-start;
+                display: block;
+                width: 100%;
               }
               .label-row {
-                display: flex;
-                gap: 10px;
-                margin-bottom: 10px;
-                align-items: flex-start;
+                display: block;
+                width: 100%;
+                margin: 0;
+                padding: 0;
+                page-break-after: always;
+              }
+              .label-row:last-child {
+                page-break-after: avoid;
               }
               @media print {
                 body { 
-                  margin: 5mm; 
+                  margin: 0; 
                   padding: 0; 
                   background: white; 
                 }
                 @page { 
-                  margin: 5mm; 
-                  size: A4;
+                  margin: 0; 
+                  padding: 0;
+                  size: 80mm 100mm;
+                }
+                .label-row {
+                  page-break-after: always;
+                  margin: 0;
+                  padding: 0;
+                  height: 100mm;
+                  width: 80mm;
+                }
+                .label-row:last-child {
+                  page-break-after: avoid;
                 }
               }
             </style>
@@ -659,10 +667,10 @@ export default function AddProduct() {
                     if (canvas) {
                       JsBarcode(canvas, "${barcode}", {
                         format: "CODE128",
-                        width: 2,
-                        height: 35,
+                        width: 1.5,
+                        height: 30,
                         displayValue: false,
-                        margin: 0,
+                        margin: 2,
                         background: "#ffffff",
                         lineColor: "#000000"
                       });
