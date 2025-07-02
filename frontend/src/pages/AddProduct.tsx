@@ -562,20 +562,25 @@ export default function AddProduct() {
 
     const barcode = selectedProduct.codigo_barras_1 || selectedProduct.codigo_barras_2 || `${selectedProduct.id}`.padStart(13, '0')
     
-    // Sempre usar 1 etiqueta por linha (uma coluna)
-    const labelsPerRow = 1
-    const totalRows = labelQuantity
+    // Limite de 2 etiquetas por página
+    const labelsPerPage = 2
+    const totalPages = Math.ceil(labelQuantity / labelsPerPage)
     
     let labelGrid = ''
     
-    for (let row = 0; row < totalRows; row++) {
-      const labelsInThisRow = 1
+    for (let page = 0; page < totalPages; page++) {
+      const startIndex = page * labelsPerPage
+      const endIndex = Math.min(startIndex + labelsPerPage, labelQuantity)
+      const labelsInThisPage = endIndex - startIndex
       
-      // Uma etiqueta por linha
-      labelGrid += `<div class="label-row">`
+      // Container da página
+      labelGrid += `<div class="page-container" ${page > 0 ? 'style="page-break-before: always;"' : ''}>`
       
-      for (let col = 0; col < labelsInThisRow; col++) {
-        const labelIndex = row
+      for (let i = 0; i < labelsInThisPage; i++) {
+        const labelIndex = startIndex + i
+        
+        // Uma etiqueta por linha
+        labelGrid += `<div class="label-row">`
         labelGrid += `
           <div style="font-family: Arial, sans-serif; width: 300px; height: 220px; margin: 0; padding: 8px; text-align: center; box-sizing: border-box; background: white; display: flex; flex-direction: column; justify-content: space-between; flex-shrink: 0;">
             
@@ -604,9 +609,11 @@ export default function AddProduct() {
             
           </div>
         `
+        
+        labelGrid += '</div>' // Fechar label-row
       }
       
-      labelGrid += '</div>'
+      labelGrid += '</div>' // Fechar page-container
     }
 
     const printWindow = window.open('', '_blank')
@@ -629,6 +636,14 @@ export default function AddProduct() {
                 gap: 10px;
                 align-items: flex-start;
               }
+              .page-container {
+                min-height: 100vh;
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-start;
+                align-items: center;
+                padding: 20px 0;
+              }
               .label-row {
                 display: flex;
                 gap: 10px;
@@ -645,6 +660,18 @@ export default function AddProduct() {
                 @page { 
                   margin: 5mm; 
                   size: A4;
+                }
+                .page-container {
+                  page-break-after: always;
+                  min-height: 100vh;
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: flex-start;
+                  align-items: center;
+                  padding: 20px 0;
+                }
+                .page-container:last-child {
+                  page-break-after: avoid;
                 }
               }
             </style>
