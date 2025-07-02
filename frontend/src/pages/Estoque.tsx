@@ -213,14 +213,14 @@ export default function Estoque() {
   // Função para imprimir etiqueta do produto
   const handlePrintLabel = (produto: DetalheProduto) => {
     const labelContent = `
-      <div style="width: 4cm; height: 3cm; font-family: Arial, sans-serif; font-size: 8px; padding: 2mm; border: 1px solid #000; display: flex; flex-direction: column; justify-content: space-between;">
+      <div style="width: 4cm; height: 3cm; font-family: Arial, sans-serif; padding: 2mm; display: flex; flex-direction: column; justify-content: space-between;">
         <div>
-          <div style="font-weight: bold; font-size: 9px; margin-bottom: 1mm;">${produto.descricao.substring(0, 25)}${produto.descricao.length > 25 ? '...' : ''}</div>
-          <div style="font-size: 7px; color: #666; margin-bottom: 1mm;">${produto.categoria}</div>
+          <div style="font-weight: bold; font-size: 12px; margin-bottom: 0.5mm; line-height: 1.1;">${produto.descricao.substring(0, 25)}${produto.descricao.length > 25 ? '...' : ''}</div>
+          <div style="font-size: 10px; color: #666; margin-bottom: 2mm;">${produto.categoria}</div>
         </div>
-        <div style="text-align: center;">
-          <div style="font-size: 12px; font-weight: bold; margin-bottom: 1mm;">R$ ${produto.valor_venda.toFixed(2)}</div>
-          <div style="font-size: 6px; color: #666;">MixJovim</div>
+        <div style="text-align: center; margin-top: auto;">
+          <div style="font-size: 16px; font-weight: bold; margin-bottom: 0.5mm;">R$ ${produto.valor_venda.toFixed(2)}</div>
+          <div style="font-size: 8px; color: #666;">MixJovim</div>
         </div>
       </div>
     `
