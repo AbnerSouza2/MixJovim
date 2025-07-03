@@ -212,10 +212,10 @@ export default function Estoque() {
 
   // Função para imprimir etiqueta do produto
   const handlePrintLabel = (produto: DetalheProduto) => {
-    const productName = produto.descricao;
-    const productPrice = `R$ ${Number(produto.valor_venda).toFixed(2)}`;
-    // Usando o ID do produto como um fallback simples para código de barras
-    const barcodeValue = `${produto.id}`.padStart(12, '0');
+    const productName = produto.descricao
+    const productPrice = `R$ ${Number(produto.valor_venda).toFixed(2)}`
+    // Usando o ID do produto para gerar um código de barras consistente
+    const barcodeValue = `${produto.id}`.padStart(13, '0')
 
     const labelContent = `
       <div class="label">
@@ -225,14 +225,14 @@ export default function Estoque() {
           <canvas id="barcode" class="barcode"></canvas>
         </div>
       </div>
-    `;
+    `
 
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open('', '_blank')
     if (printWindow) {
       printWindow.document.write(`
         <html>
           <head>
-            <title>Etiqueta - ${produto.descricao}</title>
+            <title>Etiqueta - ${productName}</title>
             <style>
               @page {
                 size: 6cm 3cm;
@@ -243,6 +243,7 @@ export default function Estoque() {
                 padding: 0;
                 font-family: Arial, sans-serif;
                 display: flex;
+                flex-wrap: wrap;
                 justify-content: center;
                 align-items: center;
                 height: 100vh;
@@ -307,10 +308,10 @@ export default function Estoque() {
             <\/script>
           </body>
         </html>
-      `);
-      printWindow.document.close();
+      `)
+      printWindow.document.close()
     }
-  };
+  }
 
     if (loading) {
     return (
