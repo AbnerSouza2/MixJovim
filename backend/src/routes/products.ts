@@ -450,12 +450,9 @@ router.post('/import', authenticateToken, upload.single('file'), async (req: Aut
             // 1º - Verificar pelo nome
             existingProduct = existingProductsCache.get(`name_${descricaoLower}`)
             
-            // 2º - Verificar pelos códigos se não encontrou pelo nome
+            // 2º - Verificar pelo código ML (codigo_barras_1) se não encontrou pelo nome
             if (!existingProduct && normalizedRow.codigo_barras_1) {
               existingProduct = existingProductsCache.get(`code1_${normalizedRow.codigo_barras_1}`)
-            }
-            if (!existingProduct && normalizedRow.codigo_barras_2) {
-              existingProduct = existingProductsCache.get(`code2_${normalizedRow.codigo_barras_2}`)
             }
 
             if (existingProduct) {
@@ -625,6 +622,27 @@ router.get('/conferidos', authenticateToken, async (req: AuthRequest, res) => {
     res.json(productRows)
   } catch (error) {
     console.error('Erro ao buscar produtos conferidos:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+// Rota para obter estatísticas dos produtos
+router.get('/stats', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const db = getDatabase();
+    const [rows] = await db.execute(`
+      SELECT
+        SUM(quantidade) as totalProdutos,
+        SUM(CASE WHEN quantidade > 0 THEN 1 ELSE 0 END) as comEstoque,
+        SUM(CASE WHEN quantidade > 0 AND quantidade <= 10 THEN 1 ELSE 0 END) as estoqueBaixo,
+        SUM(CASE WHEN quantidade > 10 AND quantidade <= 20 THEN 1 ELSE 0 END) as estoqueMedio,
+        SUM(CASE WHEN quantidade > 20 AND quantidade <= 30 THEN 1 ELSE 0 END) as estoqueAlto
+      FROM products
+    `)
+    
+    res.json(rows)
+  } catch (error) {
+    console.error('Erro ao obter estatísticas dos produtos:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })

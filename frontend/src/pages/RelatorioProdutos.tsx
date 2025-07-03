@@ -106,7 +106,7 @@ export default function RelatorioProdutos() {
   }
 
   const getStockSummary = () => {
-    const total = products.length
+    const total = products.reduce((sum, p) => sum + (p.quantidade || 0), 0)
     const withStock = products.filter(p => (p.quantidade_disponivel || 0) > 0).length
     const lowStock = products.filter(p => (p.quantidade_disponivel || 0) <= 5 && (p.quantidade_disponivel || 0) > 0).length
     const zeroStock = products.filter(p => (p.quantidade_disponivel || 0) === 0).length
