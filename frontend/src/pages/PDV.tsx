@@ -322,11 +322,11 @@ export default function PDV() {
     const vendedorNome = user?.role === 'admin' ? 'MixJovim' : (user?.username || 'Sistema')
 
     const receiptContent = `
-      <div style="font-family: monospace; font-size: 16px; width: 80mm; margin: 0; padding: 12px; box-sizing: border-box; line-height: 1.6;">
-        <div style="text-align: center; margin-bottom: 12px;">
-          <h2 style="margin: 0; font-size: 32px; font-weight: bold;">MIXJOVIM</h2>
-          <div style="margin: 8px 0; font-size: 20px;">
-            <div style="font-weight: bold; margin: 8px 0; font-size: 22px;">--- CUPOM NÃO FISCAL ---</div>
+      <div style="font-family: monospace; font-size: 12px; width: 80mm; margin: 0; padding: 10px; box-sizing: border-box; line-height: 1.4;">
+        <div style="text-align: center; margin-bottom: 8px;">
+          <h2 style="margin: 0; font-size: 22px; font-weight: bold;">MIXJOVIM</h2>
+          <div style="margin: 5px 0; font-size: 14px;">
+            <div style="font-weight: bold; margin: 5px 0; font-size: 16px;">--- CUPOM NÃO FISCAL ---</div>
             <div>Data: ${new Date(lastSale.created_at).toLocaleDateString('pt-BR')} - ${new Date(lastSale.created_at).toLocaleTimeString('pt-BR')}</div>
             <div>Tel: (19) 99304-2090</div>
             <div>Vendedor: ${vendedorNome}</div>
@@ -334,13 +334,13 @@ export default function PDV() {
           </div>
         </div>
         
-        <div style="border-top: 2px dashed #000; border-bottom: 2px dashed #000; padding: 10px 0; margin: 12px 0;">
-          <div style="text-align: center; font-weight: bold; font-size: 24px;">ITENS DO PEDIDO</div>
+        <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 6px 0; margin: 8px 0;">
+          <div style="text-align: center; font-weight: bold; font-size: 16px;">ITENS DO PEDIDO</div>
         </div>
         
         ${lastSale.items.map((item: CartItem) => `
-          <div style="margin-bottom: 10px; font-size: 20px;">
-            <div style="font-weight: bold; font-size: 20px;">${item.produto.descricao.toUpperCase()}</div>
+          <div style="margin-bottom: 6px; font-size: 14px;">
+            <div style="font-weight: bold; font-size: 14px;">${item.produto.descricao.toUpperCase()}</div>
             <div style="display: flex; justify-content: space-between;">
               <span>Qtd: ${item.quantidade} x R$ ${(item.subtotal / item.quantidade).toFixed(2)}</span>
               <span>R$ ${item.subtotal.toFixed(2)}</span>
@@ -348,7 +348,7 @@ export default function PDV() {
           </div>
         `).join('')}
         
-        <div style="border-top: 2px dashed #000; padding: 10px 0; margin: 12px 0; font-size: 20px;">
+        <div style="border-top: 1px dashed #000; padding: 6px 0; margin: 8px 0; font-size: 14px;">
           <div style="display: flex; justify-content: space-between;">
             <span>Subtotal:</span>
             <span>R$ ${lastSale.subtotal.toFixed(2)}</span>
@@ -359,23 +359,23 @@ export default function PDV() {
               <span>- R$ ${lastSale.discount.toFixed(2)}</span>
             </div>
           ` : ''}
-          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 28px; border-top: 2px solid #000; padding-top: 8px; margin-top: 8px;">
+          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 20px; border-top: 1px solid #000; padding-top: 5px; margin-top: 5px;">
             <span>TOTAL:</span>
             <span>R$ ${lastSale.total.toFixed(2)}</span>
           </div>
         </div>
         
-        <div style="text-align: center; background: #000; color: #fff; padding: 12px; margin: 12px 0; font-size: 24px; border-radius: 8px;">
+        <div style="text-align: center; background: #000; color: #fff; padding: 8px; margin: 8px 0; font-size: 16px; border-radius: 6px;">
           <div style="font-weight: bold;">${lastSale.payment_method === 'dinheiro' ? 'DINHEIRO' : 
             lastSale.payment_method === 'cartao_credito' ? `CARTÃO CRÉDITO ${lastSale.installments}X` :
             lastSale.payment_method === 'cartao_debito' ? 'CARTÃO DÉBITO' :
             lastSale.payment_method === 'pix' ? 'PIX' : 'OUTROS'}</div>
           ${lastSale.payment_method === 'cartao_credito' && lastSale.installments > 1 ? 
-            `<div style="font-size: 18px;">PARCELA: R$ ${(lastSale.total / lastSale.installments).toFixed(2)}</div>` : ''
+            `<div style="font-size: 12px;">PARCELA: R$ ${(lastSale.total / lastSale.installments).toFixed(2)}</div>` : ''
           }
         </div>
         
-        <div style="text-align: center; margin-top: 16px; font-size: 18px;">
+        <div style="text-align: center; margin-top: 10px; font-size: 12px;">
           <div>Obrigado e volte sempre!</div>
         </div>
       </div>
