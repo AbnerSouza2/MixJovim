@@ -1,6 +1,9 @@
 import { Router } from 'express'
 import { getDatabase } from '../database/connection'
-import { authenticateToken, AuthRequest } from '../middleware/auth'
+import { authenticateToken, AuthRequest, checkPermission } from '../middleware/auth'
+import { saleValidation, validateAndSanitize } from '../middleware/security'
+import { format } from 'date-fns'
+import { zonedTimeToUtc } from 'date-fns-tz'
 
 const router = Router()
 
@@ -41,14 +44,19 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
       }
     }
 
+    // Formatar a data atual para o fuso horário de São Paulo
+    const nowInSaoPaulo = new Date()
+    const utcDate = zonedTimeToUtc(nowInSaoPaulo, 'America/Sao_Paulo')
+    const formattedDate = format(utcDate, 'yyyy-MM-dd HH:mm:ss')
+
     // Iniciar transação
     await db.query('START TRANSACTION')
 
     try {
       // Criar a venda
       const [saleResult] = await db.execute(
-        'INSERT INTO sales (total, discount, payment_method, user_id, cliente_id) VALUES (?, ?, ?, ?, ?)',
-        [total, discount, payment_method, req.user?.id, cliente_id]
+        'INSERT INTO sales (total, discount, payment_method, user_id, cliente_id, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [total, discount, payment_method, req.user?.id, cliente_id, formattedDate]
       )
 
       const insertResult = saleResult as any
