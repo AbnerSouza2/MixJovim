@@ -254,6 +254,9 @@ export default function Estoque() {
               body {
                 margin: 0;
                 font-family: Arial, sans-serif;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
               }
               .label {
                 width: 6cm;
@@ -266,7 +269,9 @@ export default function Estoque() {
                 align-items: center;
                 text-align: center;
                 overflow: hidden;
-                page-break-after: always;
+              }
+              .label:not(:last-child) {
+                page-break-after: always; /* Força nova página, exceto para o último */
               }
               .product-name {
                 font-size: 6.5pt;
