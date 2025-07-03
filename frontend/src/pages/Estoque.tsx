@@ -280,7 +280,7 @@ export default function Estoque() {
               }
               .from-price {
                 font-size: 7pt;
-                color: #333;
+                color: #000000;
                 margin: 0.5mm 0;
               }
               .main-price {
@@ -295,7 +295,7 @@ export default function Estoque() {
                 width: 100%;
               }
               .barcode {
-                width: 95%;
+                width: 100%;
                 height: 10mm;
               }
             </style>

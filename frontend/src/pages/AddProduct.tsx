@@ -619,7 +619,7 @@ export default function AddProduct() {
               }
               .from-price {
                 font-size: 7pt; /* Fonte menor */
-                color: #333;
+                color: #000000; /* Preto sólido para impressão */
                 margin: 0.5mm 0;
               }
               .main-price {
@@ -634,7 +634,7 @@ export default function AddProduct() {
                 width: 100%;
               }
               .barcode {
-                width: 95%;
+                width: 100%; /* Largura máxima */
                 height: 10mm;
               }
             </style>
