@@ -255,9 +255,9 @@ export default function Estoque() {
                 margin: 0;
                 font-family: Arial, sans-serif;
                 display: flex;
-                flex-wrap: wrap;
-                justify-content: flex-start;
-                align-items: flex-start;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
               }
               .label {
                 width: 6cm;
@@ -272,19 +272,19 @@ export default function Estoque() {
                 overflow: hidden;
               }
               .product-name {
-                font-size: 7.5pt;
+                font-size: 7pt;
                 font-weight: bold;
                 line-height: 1.1;
                 margin: 0;
                 word-break: break-word;
               }
               .from-price {
-                font-size: 7.5pt;
+                font-size: 7pt;
                 color: #333;
                 margin: 0.5mm 0;
               }
               .main-price {
-                font-size: 15pt;
+                font-size: 14pt;
                 font-weight: 900;
                 margin: 0.5mm 0;
               }

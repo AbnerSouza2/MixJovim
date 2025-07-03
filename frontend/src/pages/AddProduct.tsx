@@ -594,9 +594,9 @@ export default function AddProduct() {
                 margin: 0;
                 font-family: Arial, sans-serif;
                 display: flex;
-                flex-wrap: wrap;
-                justify-content: flex-start;
-                align-items: flex-start;
+                justify-content: center; /* Centraliza a etiqueta na página */
+                align-items: center;
+                height: 100vh;
               }
               .label {
                 width: 6cm;
@@ -605,25 +605,25 @@ export default function AddProduct() {
                 box-sizing: border-box;
                 display: flex;
                 flex-direction: column;
-                justify-content: center; /* Centraliza verticalmente */
+                justify-content: center;
                 align-items: center;
                 text-align: center;
                 overflow: hidden;
               }
               .product-name {
-                font-size: 7.5pt; /* Levemente menor */
+                font-size: 7pt; /* Fonte menor */
                 font-weight: bold;
                 line-height: 1.1;
                 margin: 0;
                 word-break: break-word;
               }
               .from-price {
-                font-size: 7.5pt; /* Levemente menor */
+                font-size: 7pt; /* Fonte menor */
                 color: #333;
                 margin: 0.5mm 0;
               }
               .main-price {
-                font-size: 15pt; /* Levemente menor */
+                font-size: 14pt; /* Fonte principal menor */
                 font-weight: 900;
                 margin: 0.5mm 0;
               }
