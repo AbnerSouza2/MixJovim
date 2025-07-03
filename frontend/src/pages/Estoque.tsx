@@ -254,9 +254,6 @@ export default function Estoque() {
               body {
                 margin: 0;
                 font-family: Arial, sans-serif;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
               }
               .label {
                 width: 6cm;
