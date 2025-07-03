@@ -462,19 +462,22 @@ router.post('/fix-permissions', authenticateToken, requireAdmin, async (req: Aut
           dashboard: false,
           reports: false,
           estoque: false,
-          funcionarios: false
+          funcionarios: false,
+          financeiro: false
         }
         
-        // Tentar extrair valores reais se possível
-        try {
-          if (user.permissions.includes('"pdv":true')) cleanPermissions.pdv = true
-          if (user.permissions.includes('"products":true')) cleanPermissions.products = true
-          if (user.permissions.includes('"dashboard":true')) cleanPermissions.dashboard = true
-          if (user.permissions.includes('"reports":true')) cleanPermissions.reports = true
-          if (user.permissions.includes('"estoque":true')) cleanPermissions.estoque = true
-          if (user.permissions.includes('"funcionarios":true')) cleanPermissions.funcionarios = true
-        } catch (e) {
-          console.log('Usando permissões padrão para:', user.username)
+        if (user.permissions && typeof user.permissions === 'object') {
+          // Tentar extrair valores reais se possível
+          try {
+            if (user.permissions.pdv) cleanPermissions.pdv = true
+            if (user.permissions.products) cleanPermissions.products = true
+            if (user.permissions.dashboard) cleanPermissions.dashboard = true
+            if (user.permissions.reports) cleanPermissions.reports = true
+            if (user.permissions.estoque) cleanPermissions.estoque = true
+            if (user.permissions.funcionarios) cleanPermissions.funcionarios = true
+          } catch (e) {
+            console.log('Usando permissões padrão para:', user.username)
+          }
         }
         
         // Atualizar no banco
