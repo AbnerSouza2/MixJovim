@@ -293,7 +293,7 @@ export default function Estoque() {
                 justify-content: center;
                 align-items: center;
                 width: 100%;
-                height: 20mm;
+                height: 14mm;
               }
               .barcode {
                 width: 100%;
