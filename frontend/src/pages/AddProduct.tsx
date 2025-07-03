@@ -557,161 +557,116 @@ export default function AddProduct() {
     setLabelQuantity(1)
   }
 
-  const generateLabels = () => {
-    if (!selectedProduct) return
+  const generateLabels = (product: Product, quantity: number) => {
+    if (!product || quantity <= 0) return
 
-    const barcode = selectedProduct.codigo_barras_1 || selectedProduct.codigo_barras_2 || `${selectedProduct.id}`.padStart(13, '0')
-    
-    // Sempre usar 1 etiqueta por linha (uma coluna)
-    const labelsPerRow = 1
-    const totalRows = labelQuantity
-    
-    let labelGrid = ''
-    
-    for (let row = 0; row < totalRows; row++) {
-      const labelsInThisRow = 1
-      
-      // Uma etiqueta por linha
-      labelGrid += `<div class="label-row">`
-      
-      for (let col = 0; col < labelsInThisRow; col++) {
-        const labelIndex = row
-        labelGrid += `
-          <div style="font-family: Arial, sans-serif; width: 6cm; height: 3cm; margin: 0; padding: 4px; text-align: center; box-sizing: border-box; background: white; display: flex; flex-direction: column; justify-content: space-between; flex-shrink: 0;">
-            
-            <!-- Nome do Produto -->
-            <div style="font-weight: bold; font-size: 10px; line-height: 1.1; display: flex; align-items: center; justify-content: center; word-break: break-word; white-space: normal; hyphens: auto; color: #333; text-align: center; padding: 1px; margin-bottom: 1px;">
-              ${selectedProduct.descricao.toUpperCase()}
-            </div>
-            
-            <!-- Preços - DESTAQUE PRINCIPAL -->
-            <div style="margin: 5px 0; padding: 4px 4px;">
-              <div style="font-size: 10px; font-weight: bold; margin-bottom: 1px; color: #666;">
-                DE R$ ${Number(selectedProduct.valor_unitario || 0).toFixed(2).replace('.', ',')}
-              </div>
-              <div style="font-weight: 900; font-size: 22px; color: #000;  letter-spacing: 1px;">
-                R$ ${Number(selectedProduct.valor_venda || 0).toFixed(2).replace('.', ',')}
-              </div>
-              
-            </div>
-            
-            <!-- Código de Barras - Movido para baixo -->
-            <div style="display: flex; justify-content: center; align-items: center; height: 22px; margin-top: 0px;">
-              <canvas id="barcode${labelIndex}" style="max-width: 4.5cm; height: 19px;"></canvas>
-            </div>
-            
-          </div>
-        `
-      }
-      
-      labelGrid += '</div>'
-    }
+    const barcodeValue = product.codigo_barras_1 || ''
+    const productName = product.descricao
+    const productPrice = `R$ ${parseFloat(product.valor_venda).toFixed(2)}`
 
     const printWindow = window.open('', '_blank')
     if (printWindow) {
+      let labelsHtml = ''
+      for (let i = 0; i < quantity; i++) {
+        labelsHtml += `
+          <div class="label">
+            <div class="product-name">${productName.toUpperCase()}</div>
+            <div class="product-price">${productPrice}</div>
+            <div class="barcode-container">
+              <canvas id="barcode${i}" class="barcode"></canvas>
+            </div>
+          </div>
+        `
+      }
+
       printWindow.document.write(`
         <html>
           <head>
-            <title>Etiquetas - ${selectedProduct.descricao}</title>
-            <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+            <title>Etiquetas de Produto</title>
             <style>
-              html, body {
-                width: 6cm;
-                height: 3cm;
+              @page {
+                size: 6cm 3cm;
                 margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-                background: white;
               }
               body {
+                margin: 0;
+                padding: 0;
+                font-family: Arial, sans-serif;
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center; /* Centraliza a etiqueta na página */
+                align-items: center;
+                height: 100vh; /* Ocupa a altura toda para centralizar verticalmente */
+              }
+              .label {
+                width: 5.8cm;
+                height: 2.8cm;
+                box-sizing: border-box;
+                padding: 0.1cm;
                 display: flex;
                 flex-direction: column;
-                justify-content: flex-start;
-                align-items: flex-start;
-                width: 6cm;
-                height: 3cm;
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-                background: white;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+                overflow: hidden;
               }
-              .label-row {
+              .product-name {
+                font-size: 10pt;
+                font-weight: bold;
+                margin: 0;
+                line-height: 1.1;
+                word-wrap: break-word; /* Permite a quebra de linha */
+              }
+              .product-price {
+                font-size: 12pt;
+                font-weight: bold;
+                margin: 2px 0;
+              }
+              .barcode-container {
+                width: 100%;
                 display: flex;
-                justify-content: flex-start;
-                align-items: flex-start;
-                margin: 0;
-                padding: 0;
-                gap: 0;
+                justify-content: center;
+                align-items: center;
               }
-              @media print {
-                html, body {
-                  width: 6cm;
-                  height: 3cm;
-                  margin: 0;
-                  padding: 0;
-                  background: white;
-                }
-                body {
-                  width: 6cm;
-                  height: 3cm;
-                  margin: 0;
-                  padding: 0;
-                  background: white;
-                }
-                @page {
-                  size: 6cm 3cm;
-                  margin: 0;
-                }
+              .barcode {
+                width: 5.5cm; /* Largura do código de barras */
+                height: auto; /* Altura automática */
+                display: block;
               }
             </style>
           </head>
           <body>
-            ${labelGrid}
+            ${labelsHtml}
+            <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
             <script>
               window.onload = function() {
                 try {
-                  // Gerar código de barras para cada etiqueta
-                  for (let i = 0; i < ${labelQuantity}; i++) {
+                  for (let i = 0; i < ${quantity}; i++) {
                     const canvas = document.getElementById('barcode' + i);
                     if (canvas) {
-                      JsBarcode(canvas, "${barcode}", {
+                      JsBarcode(canvas, "${barcodeValue}", {
                         format: "CODE128",
                         width: 2,
-                        height: 35,
-                        displayValue: false,
-                        margin: 0,
-                        background: "#ffffff",
-                        lineColor: "#000000"
+                        height: 25,
+                        displayValue: true,
+                        fontSize: 10
                       });
                     }
                   }
-                  
-                  // Aguardar um pouco para os códigos de barras serem gerados
-                  setTimeout(function() {
-                    window.print();
-                    setTimeout(function() {
-                      window.close();
-                    }, 100);
-                  }, 1000);
-                } catch (error) {
-                  console.error("Erro ao gerar códigos de barras:", error);
-                  // Se falhar, imprimir mesmo assim
-                  setTimeout(function() {
-                    window.print();
-                    setTimeout(function() {
-                      window.close();
-                    }, 100);
-                  }, 500);
+                  window.print();
+                  window.close();
+                } catch (e) {
+                  console.error('Erro ao gerar código de barras:', e);
+                  alert('Erro ao gerar código de barras. Verifique o console para mais detalhes.');
+                  window.close();
                 }
-              }
+              };
             </script>
           </body>
         </html>
       `)
       printWindow.document.close()
     }
-    
-    setShowLabelModal(false)
   }
 
   // Função para registrar conferência ou perda com modal
@@ -1791,10 +1746,10 @@ export default function AddProduct() {
 
             <div className="flex gap-3">
               <button
-                onClick={generateLabels}
+                onClick={() => selectedProduct && generateLabels(selectedProduct, labelQuantity)}
                 className="btn-gold flex-1"
               >
-                GERAR ETIQUETAS
+                Imprimir Etiquetas
               </button>
               <button
                 onClick={() => setShowLabelModal(false)}
