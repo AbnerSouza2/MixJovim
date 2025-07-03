@@ -340,9 +340,9 @@ export default function PDV() {
         
         ${lastSale.items.map((item: CartItem) => `
           <div style="margin-bottom: 6px; font-size: 14px;">
-            <div style="font-weight: bold; font-size: 14px;">${item.produto.descricao.toUpperCase()}</div>
+            <div style="font-weight: bold; font-size: 14px; text-align: left;">${item.produto.descricao.toUpperCase()}</div>
             <div style="display: flex; justify-content: space-between;">
-              <span>Qtd: ${item.quantidade} x R$ ${(item.subtotal / item.quantidade).toFixed(2)}</span>
+              <span>Qtd: ${item.quantidade}</span>
               <span>R$ ${item.subtotal.toFixed(2)}</span>
             </div>
           </div>

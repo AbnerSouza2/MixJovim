@@ -8,8 +8,8 @@ const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '3306'),
   user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'mixjovim',
+  password: process.env.DB_PASSWORD || 'password',
+  database: process.env.DB_NAME || 'mixjovim_db',
   charset: 'utf8mb4',
   // Configurações do pool para maior robustez
   connectionLimit: 10,
@@ -19,7 +19,8 @@ const dbConfig = {
   idleTimeout: 300000,
   // Configurações de retry
   maxReconnects: 3,
-  reconnectDelay: 2000
+  reconnectDelay: 2000,
+  timezone: 'America/Sao_Paulo'
 }
 
 export async function initializeDatabase(): Promise<mysql.Pool> {
@@ -79,9 +80,11 @@ export async function initializeDatabase(): Promise<mysql.Pool> {
     await connection.end()
     connection = null
 
+    console.log('✅ Database and tables initialized successfully!')
+
     return pool
   } catch (error) {
-    console.error('Erro ao conectar com MySQL:', error)
+    console.error('❌ Could not connect to the database:', error)
     throw error
   }
 }
