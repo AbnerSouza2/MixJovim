@@ -562,7 +562,7 @@ export default function AddProduct() {
 
     const barcodeValue = product.codigo_barras_1 || ''
     const productName = product.descricao
-    const productPrice = `R$ ${parseFloat(product.valor_venda).toFixed(2)}`
+    const productPrice = `R$ ${Number(product.valor_venda).toFixed(2)}`
 
     const printWindow = window.open('', '_blank')
     if (printWindow) {
