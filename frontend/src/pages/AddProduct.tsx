@@ -586,10 +586,13 @@ export default function AddProduct() {
           <head>
             <title>Etiqueta - ${productName}</title>
             <style>
-              @page { size: 5cm 3cm; margin: 0; }
-              body { margin: 0; font-family: 'Arial Narrow', Arial, sans-serif; }
+              @page { size: 6cm 3cm; margin: 0; }
+              body {
+                margin: 0; font-family: 'Arial Narrow', Arial, sans-serif;
+                display: flex; justify-content: center; align-items: center; height: 100vh;
+              }
               .label {
-                width: 5cm; height: 3cm;
+                width: 6cm; height: 3cm;
                 padding: 2mm; box-sizing: border-box;
                 display: flex; flex-direction: column;
                 justify-content: center; align-items: center;
@@ -599,7 +602,7 @@ export default function AddProduct() {
               .from-price { font-size: 8pt; color: #333; }
               .main-price { font-size: 16pt; font-weight: 900; margin: 0.5mm 0; }
               .barcode-container { margin-top: 1mm; }
-              .barcode { height: 18mm; width: 4.5cm; }
+              .barcode { height: 18mm; width: 5.5cm; }
             </style>
           </head>
           <body>
