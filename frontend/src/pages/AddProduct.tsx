@@ -605,25 +605,25 @@ export default function AddProduct() {
                 box-sizing: border-box;
                 display: flex;
                 flex-direction: column;
-                justify-content: space-around;
+                justify-content: center; /* Centraliza verticalmente */
                 align-items: center;
                 text-align: center;
                 overflow: hidden;
               }
               .product-name {
-                font-size: 8pt;
+                font-size: 7.5pt; /* Levemente menor */
                 font-weight: bold;
                 line-height: 1.1;
                 margin: 0;
                 word-break: break-word;
               }
               .from-price {
-                font-size: 8pt;
+                font-size: 7.5pt; /* Levemente menor */
                 color: #333;
                 margin: 0.5mm 0;
               }
               .main-price {
-                font-size: 16pt;
+                font-size: 15pt; /* Levemente menor */
                 font-weight: 900;
                 margin: 0.5mm 0;
               }
