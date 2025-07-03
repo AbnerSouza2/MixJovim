@@ -593,15 +593,11 @@ export default function AddProduct() {
               body {
                 margin: 0;
                 font-family: Arial, sans-serif;
-                display: flex;
-                justify-content: center; /* Centraliza a etiqueta na página */
-                align-items: center;
-                height: 100vh;
               }
               .label {
                 width: 6cm;
                 height: 3cm;
-                padding: 1mm; /* Padding reduzido */
+                padding: 1mm;
                 box-sizing: border-box;
                 display: flex;
                 flex-direction: column;
@@ -609,6 +605,7 @@ export default function AddProduct() {
                 align-items: center;
                 text-align: center;
                 overflow: hidden;
+                page-break-after: always; /* Força nova página após cada etiqueta */
               }
               .product-name {
                 font-size: 6.5pt; /* Fonte ainda menor para caber nomes longos */
