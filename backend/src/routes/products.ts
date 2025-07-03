@@ -393,106 +393,87 @@ router.post('/import', authenticateToken, upload.single('file'), async (req: Aut
     
     console.log(`🗄️ [IMPORT] Cache carregado com ${products.length} produtos existentes`)
     
-    // Processar em lotes para evitar travamento
+    // Etapa 1: Consolidar produtos da planilha em memória primeiro
+    console.log('🔄 [IMPORT] Consolidando produtos da planilha...')
+    const consolidatedProducts = new Map<string, any>()
+    
+    for (let i = startRow; i < dataArray.length; i++) {
+      const row = dataArray[i] as any[]
+      if (!row || row.length === 0 || !row.some(cell => cell !== null && cell !== undefined && cell !== '')) {
+        continue
+      }
+
+      const normalizedRow = {
+        descricao: (row[6]?.toString()?.trim() || '').substring(0, 255),
+        quantidade: Math.max(Number(row[4]) || 1, 1),
+        valor_unitario: 0,
+        valor_venda: 0,
+        categoria: 'Selecione a categoria',
+        codigo_barras_1: (row[2]?.toString()?.trim() && row[2].toString().trim() !== '') ? row[2].toString().trim().substring(0, 50) : null,
+        codigo_barras_2: (row[3]?.toString()?.trim() && row[3].toString().trim() !== '') ? row[3].toString().trim().substring(0, 50) : null
+      }
+
+      if (!normalizedRow.descricao || normalizedRow.descricao.length < 3) {
+        errorMessages.push(`Linha ${i + 1}: Descrição inválida.`);
+        errors++;
+        continue;
+      }
+
+      const descricaoLower = normalizedRow.descricao.toLowerCase().trim();
+      const key = descricaoLower || normalizedRow.codigo_barras_1;
+
+      if (consolidatedProducts.has(key)) {
+        const existing = consolidatedProducts.get(key);
+        existing.quantidade += normalizedRow.quantidade;
+      } else {
+        consolidatedProducts.set(key, normalizedRow);
+      }
+    }
+    console.log(`✅ [IMPORT] Planilha consolidada em ${consolidatedProducts.size} produtos únicos.`);
+
+    const productsToProcess = Array.from(consolidatedProducts.values());
+    const totalBatches = Math.ceil(productsToProcess.length / BATCH_SIZE);
+
+    // Etapa 2: Processar a lista consolidada em lotes
     for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-      const batchStart = startRow + (batchIndex * BATCH_SIZE)
-      const batchEnd = Math.min(batchStart + BATCH_SIZE, dataArray.length)
+      const batchStart = batchIndex * BATCH_SIZE;
+      const batchEnd = Math.min(batchStart + BATCH_SIZE, productsToProcess.length);
+      const batch = productsToProcess.slice(batchStart, batchEnd);
       
-      console.log(`📦 [IMPORT] Processando lote ${batchIndex + 1}/${totalBatches} (linhas ${batchStart + 1}-${batchEnd})`)
+      console.log(`📦 [IMPORT] Processando lote ${batchIndex + 1}/${totalBatches} (produtos ${batchStart + 1}-${batchEnd})`);
       
-      // Iniciar transação para o lote
-      await db.query('START TRANSACTION')
+      await db.query('START TRANSACTION');
       
       try {
-        const batchInserts = []
-        const batchUpdates = []
+        const batchInserts = [];
+        const batchUpdates = [];
         
-        for (let i = batchStart; i < batchEnd; i++) {
-          try {
-            const row = dataArray[i] as any[]
-            
-            // Pular linhas vazias
-            if (!row || row.length === 0 || !row.some(cell => cell !== null && cell !== undefined && cell !== '')) {
-              continue
-            }
-            
-            // Mapeamento específico baseado nas posições das colunas
-            const normalizedRow = {
-              descricao: (row[6]?.toString()?.trim() || '').substring(0, 255), // Limitar tamanho
-              quantidade: Math.max(Number(row[4]) || 1, 1), // Garantir positivo
-              valor_unitario: 0,
-              valor_venda: 0,
-              categoria: 'Selecione a categoria',
-              codigo_barras_1: (row[2]?.toString()?.trim() && row[2].toString().trim() !== '') ? row[2].toString().trim().substring(0, 50) : null,
-              codigo_barras_2: (row[3]?.toString()?.trim() && row[3].toString().trim() !== '') ? row[3].toString().trim().substring(0, 50) : null
-            }
-
-            // Validar campos obrigatórios
-            if (!normalizedRow.descricao || normalizedRow.descricao.length < 3) {
-              const errorMsg = `Linha ${i + 1}: Descrição inválida (${normalizedRow.descricao})`
-              errorMessages.push(errorMsg)
-              errors++
-              continue
-            }
-
-            // Filtrar códigos inválidos
-            if (normalizedRow.codigo_barras_1 && (normalizedRow.codigo_barras_1.includes('#') || normalizedRow.codigo_barras_1.length < 3)) {
-              normalizedRow.codigo_barras_1 = null
-            }
-            if (normalizedRow.codigo_barras_2 && (normalizedRow.codigo_barras_2.includes('#') || normalizedRow.codigo_barras_2.length < 3)) {
-              normalizedRow.codigo_barras_2 = null
-            }
-
+        for (const product of batch) {
             // Verificar produto existente usando cache
-            let existingProduct = null
-            const descricaoLower = normalizedRow.descricao.toLowerCase().trim()
+            let existingProduct = null;
+            const descricaoLower = product.descricao.toLowerCase().trim();
             
-            // 1º - Verificar pelo nome
-            existingProduct = existingProductsCache.get(`name_${descricaoLower}`)
+            existingProduct = existingProductsCache.get(`name_${descricaoLower}`);
             
-            // 2º - Verificar pelo código ML (codigo_barras_1) se não encontrou pelo nome
-            if (!existingProduct && normalizedRow.codigo_barras_1) {
-              existingProduct = existingProductsCache.get(`code1_${normalizedRow.codigo_barras_1}`)
+            if (!existingProduct && product.codigo_barras_1) {
+              existingProduct = existingProductsCache.get(`code1_${product.codigo_barras_1}`);
             }
 
             if (existingProduct) {
-              // Produto existe - preparar update
-              const novaQuantidade = Number(existingProduct.quantidade || 0) + Number(normalizedRow.quantidade || 0)
+              const novaQuantidade = Number(existingProduct.quantidade || 0) + Number(product.quantidade || 0);
               batchUpdates.push({
-                id: existingProduct.id || 0,
-                quantidade: novaQuantidade || 0,
-                descricao: existingProduct.descricao || normalizedRow.descricao || ''
-              })
-              
-              console.log(`🔍 [DEBUG BATCH UPDATE] ID: ${existingProduct.id}, Nova Qtd: ${novaQuantidade}`)
-              
-              // Atualizar cache
-              existingProduct.quantidade = novaQuantidade
-              updated++
+                id: existingProduct.id,
+                quantidade: novaQuantidade,
+              });
+              existingProduct.quantidade = novaQuantidade; // Atualiza o cache
+              updated++;
             } else {
-              // Produto novo - preparar insert
-              batchInserts.push(normalizedRow)
-              
-              // Adicionar ao cache para evitar duplicatas no mesmo lote
-              existingProductsCache.set(`name_${descricaoLower}`, {
-                descricao: normalizedRow.descricao,
-                quantidade: normalizedRow.quantidade,
-                codigo_barras_1: normalizedRow.codigo_barras_1,
-                codigo_barras_2: normalizedRow.codigo_barras_2
-              })
-              
-              created++
+              batchInserts.push(product);
+              created++;
             }
-            
-            success++
-          } catch (error) {
-            const errorMsg = `Linha ${i + 1}: ${error}`
-            errorMessages.push(errorMsg)
-            errors++
-          }
+            success++;
         }
         
-        // Executar INSERTs em lote
         if (batchInserts.length > 0) {
           const insertValues = batchInserts.map(item => [
             item.descricao || '',
