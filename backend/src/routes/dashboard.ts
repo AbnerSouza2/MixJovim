@@ -54,9 +54,9 @@ router.get('/stats', authenticateToken, async (req: AuthRequest, res) => {
     `, [startToday, endToday])
     const vendasDia = vendasDiaRows as any[]
 
-    // Total de produtos
+    // Total de produtos (agora soma todas as quantidades em estoque)
     const [totalProdutosRows] = await db.execute(`
-      SELECT COUNT(*) as total 
+      SELECT IFNULL(SUM(quantidade), 0) as total 
       FROM products
     `)
     const totalProdutos = totalProdutosRows as any[]
