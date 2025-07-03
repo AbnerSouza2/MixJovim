@@ -212,62 +212,105 @@ export default function Estoque() {
 
   // Função para imprimir etiqueta do produto
   const handlePrintLabel = (produto: DetalheProduto) => {
+    const productName = produto.descricao;
+    const productPrice = `R$ ${Number(produto.valor_venda).toFixed(2)}`;
+    // Usando o ID do produto como um fallback simples para código de barras
+    const barcodeValue = `${produto.id}`.padStart(12, '0');
+
     const labelContent = `
-      <div style="width: 4cm; height: 3cm; font-family: Arial, sans-serif; padding: 2mm; display: flex; flex-direction: column; justify-content: space-between;">
-        <div>
-          <div style="font-weight: bold; font-size: 16px; margin-bottom: 0.5mm; line-height: 1.1;">${produto.descricao.substring(0, 25)}${produto.descricao.length > 25 ? '...' : ''}</div>
-          <div style="font-size: 14px; color: #666; margin-bottom: 2mm;">${produto.categoria}</div>
-        </div>
-        <div style="text-align: center; margin-top: auto; margin-bottom: 2px;">
-          <div style="font-size: 20px; font-weight: bold; margin-bottom: 0.5mm;">R$ ${produto.valor_venda.toFixed(2)}</div>
-          <div style="font-size: 12px; color: #666;">MixJovim</div>
+      <div class="label">
+        <div class="product-name">${productName.toUpperCase()}</div>
+        <div class="product-price">${productPrice}</div>
+        <div class="barcode-container">
+          <canvas id="barcode" class="barcode"></canvas>
         </div>
       </div>
-    `
+    `;
 
-    const printWindow = window.open('', '_blank')
+    const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(`
         <html>
           <head>
             <title>Etiqueta - ${produto.descricao}</title>
             <style>
-              body { 
-                margin: 0; 
-                padding: 10px; 
+              @page {
+                size: 6cm 3cm;
+                margin: 0;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+                font-family: Arial, sans-serif;
                 display: flex;
-                flex-wrap: wrap;
-                gap: 5mm;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
               }
-              @media print {
-                body { margin: 0; padding: 0; }
-                .no-print { display: none; }
+              .label {
+                width: 5.8cm;
+                height: 2.8cm;
+                box-sizing: border-box;
+                padding: 0.1cm;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+                overflow: hidden;
               }
-              .print-button {
+              .product-name {
+                font-size: 10pt;
+                font-weight: bold;
+                margin: 0;
+                line-height: 1.1;
+                word-wrap: break-word;
+              }
+              .product-price {
+                font-size: 12pt;
+                font-weight: bold;
+                margin: 2px 0;
+              }
+              .barcode-container {
                 width: 100%;
-                margin-bottom: 10px;
-                padding: 10px;
-                background: #007bff;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                cursor: pointer;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+              }
+              .barcode {
+                width: 5.5cm;
+                height: auto;
+                display: block;
               }
             </style>
           </head>
           <body>
-            <button class="print-button no-print" onclick="window.print()">Imprimir Etiqueta</button>
             ${labelContent}
+            <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
             <script>
-              // Auto print opcional - descomente se quiser impressão automática
-              // window.onload = function() { window.print(); }
-            </script>
+              window.onload = function() {
+                try {
+                  JsBarcode("#barcode", "${barcodeValue}", {
+                    format: "CODE128",
+                    width: 2,
+                    height: 25,
+                    displayValue: true,
+                    fontSize: 10
+                  });
+                  window.print();
+                  window.close();
+                } catch (e) {
+                  console.error('Erro ao gerar código de barras:', e);
+                  window.close();
+                }
+              };
+            <\/script>
           </body>
         </html>
-      `)
-      printWindow.document.close()
+      `);
+      printWindow.document.close();
     }
-  }
+  };
 
     if (loading) {
     return (

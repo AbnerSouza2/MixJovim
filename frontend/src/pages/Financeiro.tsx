@@ -149,9 +149,9 @@ export default function Financeiro() {
         </div>
         
         ${sale.items.map((item) => `
-          <div style="margin-bottom: 6px; font-size: 16px;">
+          <div style="margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #eee;">
             <div style="font-weight: bold; font-size: 16px; text-align: left;">${item.produto_nome.toUpperCase()}</div>
-            <div style="display: flex; justify-content: space-between;">
+            <div style="display: flex; justify-content: space-between; margin-top: 4px;">
               <span>Qtd: ${item.quantidade}</span>
               <span>R$ ${Number(item.subtotal).toFixed(2)}</span>
             </div>

@@ -339,9 +339,9 @@ export default function PDV() {
         </div>
         
         ${lastSale.items.map((item: CartItem) => `
-          <div style="margin-bottom: 6px; font-size: 16px;">
+          <div style="margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #eee;">
             <div style="font-weight: bold; font-size: 16px; text-align: left;">${item.produto.descricao.toUpperCase()}</div>
-            <div style="display: flex; justify-content: space-between;">
+            <div style="display: flex; justify-content: space-between; margin-top: 4px;">
               <span>Qtd: ${item.quantidade}</span>
               <span>R$ ${item.subtotal.toFixed(2)}</span>
             </div>
