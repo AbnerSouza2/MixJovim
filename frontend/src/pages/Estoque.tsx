@@ -262,7 +262,7 @@ export default function Estoque() {
               .label {
                 width: 6cm;
                 height: 3cm;
-                padding: 1.5mm;
+                padding: 1mm;
                 box-sizing: border-box;
                 display: flex;
                 flex-direction: column;
@@ -274,7 +274,7 @@ export default function Estoque() {
               .product-name {
                 font-size: 7pt;
                 font-weight: bold;
-                line-height: 1.1;
+                line-height: 1;
                 margin: 0;
                 word-break: break-word;
               }

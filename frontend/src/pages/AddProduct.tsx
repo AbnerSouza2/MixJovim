@@ -601,7 +601,7 @@ export default function AddProduct() {
               .label {
                 width: 6cm;
                 height: 3cm;
-                padding: 1.5mm;
+                padding: 1mm; /* Padding reduzido */
                 box-sizing: border-box;
                 display: flex;
                 flex-direction: column;
@@ -611,9 +611,9 @@ export default function AddProduct() {
                 overflow: hidden;
               }
               .product-name {
-                font-size: 7pt; /* Fonte menor */
+                font-size: 7pt;
                 font-weight: bold;
-                line-height: 1.1;
+                line-height: 1; /* Linhas mais próximas */
                 margin: 0;
                 word-break: break-word;
               }
