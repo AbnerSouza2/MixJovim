@@ -3,7 +3,7 @@ import { getDatabase } from '../database/connection'
 import { authenticateToken, AuthRequest, checkPermission } from '../middleware/auth'
 import { saleValidation, validateAndSanitize } from '../middleware/security'
 import { format } from 'date-fns'
-import { zonedTimeToUtc } from 'date-fns-tz'
+import { toZonedTime } from 'date-fns-tz'
 
 const router = Router()
 
@@ -45,9 +45,9 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
     }
 
     // Formatar a data atual para o fuso horário de São Paulo
-    const nowInSaoPaulo = new Date()
-    const utcDate = zonedTimeToUtc(nowInSaoPaulo, 'America/Sao_Paulo')
-    const formattedDate = format(utcDate, 'yyyy-MM-dd HH:mm:ss')
+    const now = new Date()
+    const zonedDate = toZonedTime(now, 'America/Sao_Paulo')
+    const formattedDate = format(zonedDate, 'yyyy-MM-dd HH:mm:ss')
 
     // Iniciar transação
     await db.query('START TRANSACTION')
