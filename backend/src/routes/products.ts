@@ -359,13 +359,11 @@ router.post('/import', authenticateToken, upload.single('file'), async (req: Aut
 
     // Começar da linha 1 se houver cabeçalho
     const startRow = 1
-    const totalRows = dataArray.length - startRow
     
-    console.log(`📝 [IMPORT] Processando ${totalRows} produtos em lotes...`)
+    console.log(`📝 [IMPORT] Processando produtos em lotes...`)
     
     // Configurações para processamento em lotes
     const BATCH_SIZE = 100 // Processar 100 produtos por vez
-    const totalBatches = Math.ceil(totalRows / BATCH_SIZE)
     
     // Cache para produtos existentes (otimização)
     const existingProductsCache = new Map()
