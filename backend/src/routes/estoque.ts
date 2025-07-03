@@ -128,6 +128,7 @@ router.get('/detalhes', async (req, res) => {
         p.id,
         p.descricao,
         p.categoria,
+        p.valor_unitario,
         p.valor_venda,
         COALESCE(SUM(CASE WHEN e.tipo = 'conferido' THEN e.quantidade ELSE 0 END), 0) as estoque_conferido,
         COALESCE(SUM(CASE WHEN e.tipo = 'perda' THEN e.quantidade ELSE 0 END), 0) as perdas,

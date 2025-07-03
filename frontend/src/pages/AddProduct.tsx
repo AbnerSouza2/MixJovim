@@ -560,112 +560,71 @@ export default function AddProduct() {
   const generateLabels = (product: Product, quantity: number) => {
     if (!product || quantity <= 0) return
 
-    const barcodeValue = product.codigo_barras_1 || ''
-    const productName = product.descricao
-    const productPrice = `R$ ${Number(product.valor_venda).toFixed(2)}`
+    const productName = product.descricao;
+    const fromPrice = `DE R$ ${Number(product.valor_unitario).toFixed(2).replace('.', ',')}`;
+    const mainPrice = `R$ ${Number(product.valor_venda).toFixed(2).replace('.', ',')}`;
+    const barcodeValue = product.codigo_barras_1 || `${product.id}`.padStart(13, '0');
 
-    const printWindow = window.open('', '_blank')
-    if (printWindow) {
-      let labelsHtml = ''
-      for (let i = 0; i < quantity; i++) {
-        labelsHtml += `
-          <div class="label">
-            <div class="product-name">${productName.toUpperCase()}</div>
-            <div class="product-price">${productPrice}</div>
-            <div class="barcode-container">
-              <canvas id="barcode${i}" class="barcode"></canvas>
-            </div>
+    let labelsHtml = '';
+    for (let i = 0; i < quantity; i++) {
+      labelsHtml += `
+        <div class="label">
+          <div class="product-name">${productName.toUpperCase()}</div>
+          <div class="from-price">${fromPrice}</div>
+          <div class="main-price">${mainPrice}</div>
+          <div class="barcode-container">
+            <canvas id="barcode-${i}" class="barcode"></canvas>
           </div>
-        `
-      }
+        </div>
+      `;
+    }
 
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
       printWindow.document.write(`
         <html>
           <head>
-            <title>Etiquetas de Produto</title>
+            <title>Etiqueta - ${productName}</title>
             <style>
-              @page {
-                size: 6cm 3cm;
-                margin: 0;
-              }
-              body {
-                margin: 0;
-                padding: 0;
-                font-family: Arial, sans-serif;
-                display: flex;
-                flex-wrap: wrap;
-                justify-content: center; /* Centraliza a etiqueta na página */
-                align-items: center;
-                height: 100vh; /* Ocupa a altura toda para centralizar verticalmente */
-              }
+              @page { size: 5cm 3cm; margin: 0; }
+              body { margin: 0; font-family: 'Arial Narrow', Arial, sans-serif; }
               .label {
-                width: 5.8cm;
-                height: 2.8cm;
-                box-sizing: border-box;
-                padding: 0.1cm;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
+                width: 5cm; height: 3cm;
+                padding: 2mm; box-sizing: border-box;
+                display: flex; flex-direction: column;
+                justify-content: center; align-items: center;
                 text-align: center;
-                overflow: hidden;
               }
-              .product-name {
-                font-size: 10pt;
-                font-weight: bold;
-                margin: 0;
-                line-height: 1.1;
-                word-wrap: break-word; /* Permite a quebra de linha */
-              }
-              .product-price {
-                font-size: 12pt;
-                font-weight: bold;
-                margin: 2px 0;
-              }
-              .barcode-container {
-                width: 100%;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-              }
-              .barcode {
-                width: 5.5cm; /* Largura do código de barras */
-                height: auto; /* Altura automática */
-                display: block;
-              }
+              .product-name { font-size: 8pt; font-weight: bold; line-height: 1.1; margin-bottom: 1mm; }
+              .from-price { font-size: 8pt; color: #333; }
+              .main-price { font-size: 16pt; font-weight: 900; margin: 0.5mm 0; }
+              .barcode-container { margin-top: 1mm; }
+              .barcode { height: 18mm; width: 4.5cm; }
             </style>
           </head>
           <body>
             ${labelsHtml}
-            <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
             <script>
               window.onload = function() {
                 try {
                   for (let i = 0; i < ${quantity}; i++) {
-                    const canvas = document.getElementById('barcode' + i);
-                    if (canvas) {
-                      JsBarcode(canvas, "${barcodeValue}", {
-                        format: "CODE128",
-                        width: 2,
-                        height: 25,
-                        displayValue: true,
-                        fontSize: 10
-                      });
-                    }
+                    JsBarcode("#barcode-" + i, "${barcodeValue}", {
+                      format: "CODE128", width: 1.5, height: 25, displayValue: false
+                    });
                   }
                   window.print();
-                  window.close();
                 } catch (e) {
                   console.error('Erro ao gerar código de barras:', e);
-                  alert('Erro ao gerar código de barras. Verifique o console para mais detalhes.');
+                } finally {
                   window.close();
                 }
               };
-            </script>
+            <\/script>
           </body>
         </html>
-      `)
-      printWindow.document.close()
+      `);
+      printWindow.document.close();
     }
   }
 
@@ -1135,7 +1094,7 @@ export default function AddProduct() {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="container mx-auto p-4 bg-gray-900 text-white min-h-screen">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-3 sm:space-y-0">
         <div>

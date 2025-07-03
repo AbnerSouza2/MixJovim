@@ -27,6 +27,7 @@ interface DetalheProduto {
   id: number
   descricao: string
   categoria: string
+  valor_unitario: number
   valor_venda: number
   estoque_conferido: number
   perdas: number
@@ -49,6 +50,11 @@ export default function Estoque() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filteredDetalhes, setFilteredDetalhes] = useState<DetalheProduto[]>([])
   const [filteredRegistros, setFilteredRegistros] = useState<EstoqueItem[]>([])
+  
+  // Estados para o modal de impressão de etiquetas
+  const [showLabelModal, setShowLabelModal] = useState(false)
+  const [selectedProductForLabel, setSelectedProductForLabel] = useState<DetalheProduto | null>(null)
+  const [labelQuantity, setLabelQuantity] = useState(1)
   
   // Estados para modal de detalhes das perdas
   const [showLossDetailsModal, setShowLossDetailsModal] = useState(false)
@@ -139,6 +145,7 @@ export default function Estoque() {
       id: registro.produto_id,
       descricao: registro.produto_descricao,
       categoria: registro.categoria,
+      valor_unitario: registro.valor_unitario,
       valor_venda: registro.valor_venda,
       estoque_conferido: 0,
       perdas: registro.quantidade,
@@ -211,109 +218,84 @@ export default function Estoque() {
   }
 
   // Função para imprimir etiqueta do produto
-  const handlePrintLabel = (produto: DetalheProduto) => {
-    const productName = produto.descricao
-    const productPrice = `R$ ${Number(produto.valor_venda).toFixed(2)}`
-    // Usando o ID do produto para gerar um código de barras consistente
-    const barcodeValue = `${produto.id}`.padStart(13, '0')
+  const handlePrintLabel = (produto: DetalheProduto, quantity: number) => {
+    if (quantity <= 0) return;
 
-    const labelContent = `
-      <div class="label">
-        <div class="product-name">${productName.toUpperCase()}</div>
-        <div class="product-price">${productPrice}</div>
-        <div class="barcode-container">
-          <canvas id="barcode" class="barcode"></canvas>
+    const productName = produto.descricao;
+    const fromPrice = `DE R$ ${Number(produto.valor_unitario).toFixed(2).replace('.', ',')}`;
+    const mainPrice = `R$ ${Number(produto.valor_venda).toFixed(2).replace('.', ',')}`;
+    const barcodeValue = `${produto.id}`.padStart(13, '0');
+    
+    let labelsHtml = '';
+    for (let i = 0; i < quantity; i++) {
+      labelsHtml += `
+        <div class="label">
+          <div class="product-name">${productName.toUpperCase()}</div>
+          <div class="from-price">${fromPrice}</div>
+          <div class="main-price">${mainPrice}</div>
+          <div class="barcode-container">
+            <canvas id="barcode-${i}" class="barcode"></canvas>
+          </div>
         </div>
-      </div>
-    `
+      `;
+    }
 
-    const printWindow = window.open('', '_blank')
+    const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(`
         <html>
           <head>
             <title>Etiqueta - ${productName}</title>
             <style>
-              @page {
-                size: 6cm 3cm;
-                margin: 0;
-              }
-              body {
-                margin: 0;
-                padding: 0;
-                font-family: Arial, sans-serif;
-                display: flex;
-                flex-wrap: wrap;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-              }
+              @page { size: 5cm 3cm; margin: 0; }
+              body { margin: 0; font-family: 'Arial Narrow', Arial, sans-serif; }
               .label {
-                width: 5.8cm;
-                height: 2.8cm;
-                box-sizing: border-box;
-                padding: 0.1cm;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
+                width: 5cm; height: 3cm;
+                padding: 2mm; box-sizing: border-box;
+                display: flex; flex-direction: column;
+                justify-content: center; align-items: center;
                 text-align: center;
-                overflow: hidden;
               }
-              .product-name {
-                font-size: 10pt;
-                font-weight: bold;
-                margin: 0;
-                line-height: 1.1;
-                word-wrap: break-word;
-              }
-              .product-price {
-                font-size: 12pt;
-                font-weight: bold;
-                margin: 2px 0;
-              }
-              .barcode-container {
-                width: 100%;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-              }
-              .barcode {
-                width: 5.5cm;
-                height: auto;
-                display: block;
-              }
+              .product-name { font-size: 8pt; font-weight: bold; line-height: 1.1; margin-bottom: 1mm; }
+              .from-price { font-size: 8pt; color: #333; }
+              .main-price { font-size: 16pt; font-weight: 900; margin: 0.5mm 0; }
+              .barcode-container { margin-top: 1mm; }
+              .barcode { height: 18mm; width: 4.5cm; }
             </style>
           </head>
           <body>
-            ${labelContent}
+            ${labelsHtml}
             <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
             <script>
               window.onload = function() {
                 try {
-                  JsBarcode("#barcode", "${barcodeValue}", {
-                    format: "CODE128",
-                    width: 2,
-                    height: 25,
-                    displayValue: true,
-                    fontSize: 10
-                  });
+                  for (let i = 0; i < ${quantity}; i++) {
+                    JsBarcode("#barcode-" + i, "${barcodeValue}", {
+                      format: "CODE128", width: 1.5, height: 25, displayValue: false
+                    });
+                  }
                   window.print();
-                  window.close();
                 } catch (e) {
                   console.error('Erro ao gerar código de barras:', e);
+                } finally {
                   window.close();
                 }
               };
             <\/script>
           </body>
         </html>
-      `)
-      printWindow.document.close()
+      `);
+      printWindow.document.close();
     }
-  }
+  };
 
-    if (loading) {
+  const openLabelModal = (produto: DetalheProduto) => {
+    setSelectedProductForLabel(produto);
+    setLabelQuantity(1);
+    setShowLabelModal(true);
+  };
+
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -504,7 +486,7 @@ export default function Estoque() {
                           </td>
                           <td className="py-2 sm:py-3 px-2 sm:px-4 text-center">
                             <button
-                              onClick={() => handlePrintLabel(produto)}
+                              onClick={() => openLabelModal(produto)}
                               className="inline-flex items-center px-2 py-1 border border-blue-600 rounded-md text-xs font-medium text-blue-300 bg-blue-800/20 hover:bg-blue-700/30 focus:outline-none focus:border-blue-500 transition-colors"
                               title="Imprimir etiqueta do produto"
                             >
@@ -638,6 +620,51 @@ export default function Estoque() {
           )}
         </div>
       </div>
+
+      {/* Modal de Impressão de Etiqueta */}
+      {showLabelModal && selectedProductForLabel && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-white">Imprimir Etiquetas</h2>
+              <button onClick={() => setShowLabelModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div>
+              <p className="text-gray-300 mb-2">Produto: <span className="font-bold text-white">{selectedProductForLabel.descricao}</span></p>
+              <label htmlFor="label-quantity" className="block text-sm font-medium text-gray-300 mb-2">
+                Quantidade de Etiquetas
+              </label>
+              <input
+                type="number"
+                id="label-quantity"
+                value={labelQuantity}
+                onChange={(e) => setLabelQuantity(Number(e.target.value))}
+                min="1"
+                className="w-full bg-gray-800 border border-gray-600 rounded-md py-2 px-3 text-white focus:ring-2 focus:ring-mixjovim-gold focus:outline-none"
+              />
+            </div>
+            <div className="mt-6 flex justify-end gap-4">
+              <button
+                onClick={() => setShowLabelModal(false)}
+                className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  handlePrintLabel(selectedProductForLabel, labelQuantity);
+                  setShowLabelModal(false);
+                }}
+                className="px-4 py-2 bg-mixjovim-gold text-gray-900 font-bold rounded-lg hover:bg-yellow-400 transition-colors"
+              >
+                Imprimir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Detalhes das Perdas */}
       {showLossDetailsModal && selectedProductForLossDetails && (
