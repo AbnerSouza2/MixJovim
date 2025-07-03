@@ -611,19 +611,19 @@ export default function AddProduct() {
                 overflow: hidden;
               }
               .product-name {
-                font-size: 7pt;
+                font-size: 6.5pt; /* Fonte ainda menor para caber nomes longos */
                 font-weight: bold;
                 line-height: 1; /* Linhas mais próximas */
                 margin: 0;
                 word-break: break-word;
               }
               .from-price {
-                font-size: 7pt; /* Fonte menor */
+                font-size: 6.5pt; /* Fonte ainda menor */
                 color: #000000; /* Preto sólido para impressão */
                 margin: 0.5mm 0;
               }
               .main-price {
-                font-size: 14pt; /* Fonte principal menor */
+                font-size: 13pt; /* Fonte principal um pouco menor */
                 font-weight: 900;
                 margin: 0.5mm 0;
               }

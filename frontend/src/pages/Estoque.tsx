@@ -272,19 +272,19 @@ export default function Estoque() {
                 overflow: hidden;
               }
               .product-name {
-                font-size: 7pt;
+                font-size: 6.5pt;
                 font-weight: bold;
                 line-height: 1;
                 margin: 0;
                 word-break: break-word;
               }
               .from-price {
-                font-size: 7pt;
+                font-size: 6.5pt;
                 color: #000000;
                 margin: 0.5mm 0;
               }
               .main-price {
-                font-size: 14pt;
+                font-size: 13pt;
                 font-weight: 900;
                 margin: 0.5mm 0;
               }
