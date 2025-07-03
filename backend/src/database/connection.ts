@@ -254,6 +254,9 @@ async function createTables() {
 }
 
 async function insertInitialData() {
+  // Comentado para desativar completamente a inserção de dados iniciais.
+  // O sistema não criará mais usuários ou produtos automaticamente.
+  /*
   if (!connection) throw new Error('Database not initialized')
 
   // Verificar se já existem usuários
@@ -317,7 +320,9 @@ async function insertInitialData() {
     console.log('   - Gerente: gerente / gerente123 (gerência completa)')
     console.log('   - Funcionário: funcionario / pdv123 (apenas PDV)')
   }
-
+  
+  // Comentado para não inserir produtos de exemplo automaticamente na inicialização
+  
   // Verificar se já existem produtos
   const [productRows] = await connection.execute('SELECT COUNT(*) as count FROM products')
   const productCount = (productRows as any[])[0].count
@@ -435,6 +440,7 @@ async function insertInitialData() {
 
     console.log('✅ Produtos de exemplo criados')
   }
+  */
 }
 
 export function getDatabase(): mysql.Pool {

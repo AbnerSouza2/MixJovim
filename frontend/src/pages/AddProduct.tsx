@@ -558,7 +558,7 @@ export default function AddProduct() {
   }
 
   const generateLabels = (product: Product, quantity: number) => {
-    if (!product || quantity <= 0) return
+    if (!product || quantity <= 0) return;
 
     const productName = product.descricao;
     const fromPrice = `DE R$ ${Number(product.valor_unitario).toFixed(2).replace('.', ',')}`;
@@ -573,7 +573,7 @@ export default function AddProduct() {
           <div class="from-price">${fromPrice}</div>
           <div class="main-price">${mainPrice}</div>
           <div class="barcode-container">
-            <canvas id="barcode-${i}" class="barcode"></canvas>
+            <svg id="barcode-${i}" class="barcode"></svg>
           </div>
         </div>
       `;
@@ -586,23 +586,57 @@ export default function AddProduct() {
           <head>
             <title>Etiqueta - ${productName}</title>
             <style>
-              @page { size: 6cm 3cm; margin: 0; }
+              @page {
+                size: 6cm 3cm;
+                margin: 0;
+              }
               body {
-                margin: 0; font-family: 'Arial Narrow', Arial, sans-serif;
-                display: flex; justify-content: center; align-items: center; height: 100vh;
+                margin: 0;
+                font-family: Arial, sans-serif;
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: flex-start;
+                align-items: flex-start;
               }
               .label {
-                width: 6cm; height: 3cm;
-                padding: 2mm; box-sizing: border-box;
-                display: flex; flex-direction: column;
-                justify-content: center; align-items: center;
+                width: 6cm;
+                height: 3cm;
+                padding: 1.5mm;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-around;
+                align-items: center;
                 text-align: center;
+                overflow: hidden;
               }
-              .product-name { font-size: 8pt; font-weight: bold; line-height: 1.1; margin-bottom: 1mm; }
-              .from-price { font-size: 8pt; color: #333; }
-              .main-price { font-size: 16pt; font-weight: 900; margin: 0.5mm 0; }
-              .barcode-container { margin-top: 1mm; }
-              .barcode { height: 18mm; width: 5.5cm; }
+              .product-name {
+                font-size: 8pt;
+                font-weight: bold;
+                line-height: 1.1;
+                margin: 0;
+                word-break: break-word;
+              }
+              .from-price {
+                font-size: 8pt;
+                color: #333;
+                margin: 0.5mm 0;
+              }
+              .main-price {
+                font-size: 16pt;
+                font-weight: 900;
+                margin: 0.5mm 0;
+              }
+              .barcode-container {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                width: 100%;
+              }
+              .barcode {
+                width: 95%;
+                height: 10mm;
+              }
             </style>
           </head>
           <body>
@@ -613,14 +647,16 @@ export default function AddProduct() {
                 try {
                   for (let i = 0; i < ${quantity}; i++) {
                     JsBarcode("#barcode-" + i, "${barcodeValue}", {
-                      format: "CODE128", width: 1.5, height: 25, displayValue: false
+                      format: "CODE128",
+                      width: 2,
+                      height: 40,
+                      displayValue: false,
+                      background: "transparent"
                     });
                   }
                   window.print();
                 } catch (e) {
                   console.error('Erro ao gerar código de barras:', e);
-                } finally {
-                  window.close();
                 }
               };
             <\/script>
