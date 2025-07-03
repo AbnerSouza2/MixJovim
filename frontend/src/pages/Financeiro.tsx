@@ -132,24 +132,25 @@ export default function Financeiro() {
     const vendedorNome = sale.vendedor_nome || 'Sistema'
 
     const receiptContent = `
-      <div style="font-family: 'Courier New', monospace; font-size: 10px; width: 280px; margin: 0; padding: 0; line-height: 1.2;">
-        <div style="text-align: center; margin-bottom: 8px;">
-          <h2 style="margin: 0; font-size: 14px; font-weight: bold;">MIXJOVIM</h2>
-          <div style="margin: 2px 0; font-size: 9px;">
-            <div style="font-weight: bold; margin: 2px 0;">--- CUPOM NÃO FISCAL ---</div>
+      <div style="font-family: monospace; font-size: 14px; width: 80mm; margin: 0; padding: 10px; box-sizing: border-box; line-height: 1.5;">
+        <div style="text-align: center; margin-bottom: 10px;">
+          <h2 style="margin: 0; font-size: 26px; font-weight: bold;">MIXJOVIM</h2>
+          <div style="margin: 6px 0; font-size: 18px;">
+            <div style="font-weight: bold; margin: 6px 0; font-size: 20px;">--- CUPOM NÃO FISCAL ---</div>
             <div>Data: ${new Date(sale.created_at).toLocaleDateString('pt-BR')} - ${new Date(sale.created_at).toLocaleTimeString('pt-BR')}</div>
-            <div>Tel: (19) 99304-2090 - Vendedor: ${vendedorNome}</div>
+            <div>Tel: (19) 99304-2090</div>
+            <div>Vendedor: ${vendedorNome}</div>
             ${sale.cliente_nome ? `<div>Cliente: ${sale.cliente_nome}</div>` : ''}
           </div>
         </div>
         
-        <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 3px 0; margin: 5px 0;">
-          <div style="text-align: center; font-weight: bold; font-size: 9px;">ITENS DO PEDIDO</div>
+        <div style="border-top: 2px dashed #000; border-bottom: 2px dashed #000; padding: 8px 0; margin: 10px 0;">
+          <div style="text-align: center; font-weight: bold; font-size: 20px;">ITENS DO PEDIDO</div>
         </div>
         
         ${sale.items.map((item) => `
-          <div style="margin-bottom: 3px; font-size: 9px;">
-            <div style="font-weight: bold;">${item.produto_nome.toUpperCase()}</div>
+          <div style="margin-bottom: 8px; font-size: 18px;">
+            <div style="font-weight: bold; font-size: 18px;">${item.produto_nome.toUpperCase()}</div>
             <div style="display: flex; justify-content: space-between;">
               <span>Qtd: ${item.quantidade} x R$ ${(Number(item.subtotal) / item.quantidade).toFixed(2)}</span>
               <span>R$ ${Number(item.subtotal).toFixed(2)}</span>
@@ -157,7 +158,7 @@ export default function Financeiro() {
           </div>
         `).join('')}
         
-        <div style="border-top: 1px dashed #000; padding: 3px 0; margin: 5px 0; font-size: 9px;">
+        <div style="border-top: 2px dashed #000; padding: 8px 0; margin: 10px 0; font-size: 18px;">
           <div style="display: flex; justify-content: space-between;">
             <span>Subtotal:</span>
             <span>R$ ${(Number(sale.total) + Number(sale.discount || 0)).toFixed(2)}</span>
@@ -168,17 +169,17 @@ export default function Financeiro() {
               <span>- R$ ${Number(sale.discount).toFixed(2)}</span>
             </div>
           ` : ''}
-          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 11px; border-top: 1px solid #000; padding-top: 2px; margin-top: 2px;">
+          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 24px; border-top: 2px solid #000; padding-top: 6px; margin-top: 6px;">
             <span>TOTAL:</span>
             <span>R$ ${Number(sale.total).toFixed(2)}</span>
           </div>
         </div>
         
-        <div style="text-align: center; background: #000; color: #fff; padding: 4px; margin: 5px 0; font-size: 9px;">
+        <div style="text-align: center; background: #000; color: #fff; padding: 10px; margin: 10px 0; font-size: 20px; border-radius: 8px;">
           <div style="font-weight: bold;">${formatPaymentMethod(sale.payment_method)}</div>
         </div>
         
-        <div style="text-align: center; margin-top: 8px; font-size: 8px;">
+        <div style="text-align: center; margin-top: 12px; font-size: 16px;">
           <div>Obrigado e volte sempre!</div>
         </div>
       </div>
