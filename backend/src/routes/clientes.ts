@@ -320,34 +320,16 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response)
   try {
     const { id } = req.params
     const db = getDatabase()
-    
     // Verificar se cliente existe
     const [existingRows] = await db.execute(
       'SELECT id FROM clientes WHERE id = ?',
       [id]
     )
-    
     if ((existingRows as any[]).length === 0) {
       return res.status(404).json({ error: 'Cliente não encontrado' })
     }
-    
-    // Verificar se cliente tem vendas associadas
-    const [salesRows] = await db.execute(
-      'SELECT COUNT(*) as count FROM sales WHERE cliente_id = ?',
-      [id]
-    )
-    
-    const salesCount = (salesRows as any[])[0].count
-    
-    if (salesCount > 0) {
-      return res.status(400).json({ 
-        error: `Não é possível excluir cliente. Existem ${salesCount} venda(s) associada(s).` 
-      })
-    }
-    
-    // Deletar cliente
+    // Deletar cliente (independente de vendas associadas)
     await db.execute('DELETE FROM clientes WHERE id = ?', [id])
-    
     res.json({ message: 'Cliente excluído com sucesso' })
   } catch (error) {
     console.error('Erro ao deletar cliente:', error)
