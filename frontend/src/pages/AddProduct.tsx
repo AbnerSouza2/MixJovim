@@ -632,11 +632,11 @@ export default function AddProduct() {
                 justify-content: center;
                 align-items: center;
                 width: 100%;
-                height: 12mm; /* Aumenta a área do código de barras */
+                height: 20mm; /* Aumenta a área do código de barras */
               }
               .barcode {
                 width: 100%;
-                height: 70%; /* Ocupa toda a altura do container */
+                height: 100%; /* Ocupa toda a altura do container */
               }
             </style>
           </head>
