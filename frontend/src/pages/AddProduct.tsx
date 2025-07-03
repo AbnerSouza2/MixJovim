@@ -640,7 +640,9 @@ export default function AddProduct() {
             </style>
           </head>
           <body>
-            ${labelsHtml}
+            <div id="label-container">
+              ${labelsHtml}
+            </div>
             <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
             <script>
               window.onload = function() {
