@@ -248,7 +248,7 @@ export default function Estoque() {
             <title>Etiqueta - ${productName}</title>
             <style>
               @page {
-                size: 5.8cm 2.8cm;
+                size: 6cm 3cm;
                 margin: 0;
               }
               body {
@@ -256,8 +256,8 @@ export default function Estoque() {
                 font-family: Arial, sans-serif;
               }
               .label {
-                width: 5.8cm;
-                height: 2.8cm;
+                width: 6cm;
+                height: 3cm;
                 padding: 1mm;
                 box-sizing: border-box;
                 display: flex;
@@ -268,7 +268,7 @@ export default function Estoque() {
                 overflow: hidden;
               }
               .label:not(:last-child) {
-                page-break-after: always; /* Força nova página, exceto para o último */
+                page-break-after: always;
               }
               .product-name {
                 font-size: 6.5pt;

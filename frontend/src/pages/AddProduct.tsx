@@ -587,17 +587,16 @@ export default function AddProduct() {
             <title>Etiqueta - ${productName}</title>
             <style>
               @page {
-                size: 5.8cm 2.8cm;
+                size: 6cm 3cm;
                 margin: 0;
               }
               body {
                 margin: 0;
                 font-family: Arial, sans-serif;
-                /* Removido o flexbox para um controle mais direto da quebra de página */
               }
               .label {
-                width: 5.8cm;
-                height: 2.8cm;
+                width: 6cm;
+                height: 3cm;
                 padding: 1mm;
                 box-sizing: border-box;
                 display: flex;
@@ -608,22 +607,22 @@ export default function AddProduct() {
                 overflow: hidden;
               }
               .label:not(:last-child) {
-                page-break-after: always; /* Força nova página, exceto para o último */
+                page-break-after: always;
               }
               .product-name {
-                font-size: 6.5pt; /* Fonte ainda menor para caber nomes longos */
+                font-size: 6.5pt;
                 font-weight: bold;
-                line-height: 1; /* Linhas mais próximas */
+                line-height: 1;
                 margin: 0;
                 word-break: break-word;
               }
               .from-price {
-                font-size: 6.5pt; /* Fonte ainda menor */
-                color: #000000; /* Preto sólido para impressão */
+                font-size: 6.5pt;
+                color: #000000;
                 margin: 0.5mm 0;
               }
               .main-price {
-                font-size: 13pt; /* Fonte principal um pouco menor */
+                font-size: 13pt;
                 font-weight: 900;
                 margin: 0.5mm 0;
               }
@@ -632,11 +631,11 @@ export default function AddProduct() {
                 justify-content: center;
                 align-items: center;
                 width: 100%;
-                height: 14mm; /* Aumenta a área do código de barras */
+                height: 14mm;
               }
               .barcode {
                 width: 100%;
-                height: 100%; /* Ocupa toda a altura do container */
+                height: 100%;
               }
             </style>
           </head>
