@@ -5,7 +5,7 @@ import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
 import { getDatabase } from '../database/connection'
-import { authenticateToken, AuthRequest, generateToken, requireAdmin } from '../middleware/auth'
+import { authenticateToken, AuthRequest, generateToken, requireAdmin, Permissions } from '../middleware/auth'
 import { 
   loginRateLimit, 
   userCreationRateLimit,
@@ -94,22 +94,24 @@ router.post('/login',
       const token = generateToken(user.id)
 
       // Parse permissions
-      let permissions = {}
+      let permissions: Permissions
       try {
+        const defaultPermissions: Permissions = {
+          pdv: false,
+          products: false,
+          dashboard: true, // Dashboard obrigatório para todos
+          reports: false,
+          estoque: false,
+          funcionarios: false,
+          financeiro: false
+        }
+
         if (typeof user.permissions === 'string') {
-          permissions = JSON.parse(user.permissions)
+          permissions = { ...defaultPermissions, ...JSON.parse(user.permissions) }
         } else if (typeof user.permissions === 'object' && user.permissions !== null) {
-          permissions = user.permissions
+          permissions = { ...defaultPermissions, ...user.permissions }
         } else {
-          permissions = {
-            pdv: false,
-            products: false,
-            dashboard: true, // Dashboard obrigatório para todos
-            reports: false,
-            estoque: false,
-            funcionarios: false,
-            financeiro: false
-          }
+          permissions = defaultPermissions
         }
         
         // Garantir que Dashboard sempre seja true
@@ -192,7 +194,7 @@ router.post('/users',
       }
 
       // Preparar permissões
-      const userPermissions = permissions || {
+      const userPermissions: Permissions = permissions || {
         pdv: false,
         products: false,
         dashboard: true, // Dashboard obrigatório para todos
@@ -247,10 +249,10 @@ router.get('/users', authenticateToken, requireAdminOrManager, async (req: AuthR
     console.log('📊 Usuários brutos do banco:', users.map(u => ({ id: u.id, username: u.username, role: u.role })))
     
     const formattedUsers = users.map((user: any) => {
-      let permissions = {
+      let permissions: Permissions = {
         pdv: false,
         products: false,
-        dashboard: true, // Dashboard obrigatório para todos
+        dashboard: true,
         reports: false,
         estoque: false,
         funcionarios: false,
@@ -454,7 +456,7 @@ router.post('/fix-permissions', authenticateToken, requireAdmin, async (req: Aut
         console.log(`Corrigindo permissões do usuário: ${user.username}`)
         
         // Extrair permissões válidas ou usar padrão
-        let cleanPermissions = {
+        let cleanPermissions: Permissions = {
           pdv: false,
           products: false,
           dashboard: false,
@@ -520,7 +522,7 @@ router.post('/users/test', authenticateToken, requireAdminOrManager, async (req:
     
     // Criar usuário com configurações mínimas
     const hashedPassword = await bcrypt.hash(password, 8)
-    const basicPermissions = {
+    const basicPermissions: Permissions = {
       pdv: true,
       products: false,
       dashboard: true,

@@ -52,8 +52,8 @@ export function validateAndSanitize(validations: any[]) {
     if (!errors.isEmpty()) {
       return res.status(400).json({
         error: 'Dados de entrada inválidos',
-        details: errors.array().map(err => ({
-          field: err.param,
+        details: errors.array().map((err: any) => ({
+          field: err.path,
           message: err.msg,
           value: err.value
         }))

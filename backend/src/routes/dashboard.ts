@@ -104,13 +104,15 @@ router.get('/stats', authenticateToken, async (req: AuthRequest, res) => {
       LIMIT 5
     `)
 
+    const statusEstoque = (statusEstoqueRows as any[])[0] || { baixo: 0, normal: 0, alto: 0 }
+    
     const response = {
       vendas_mes: vendasMes[0].total,
       vendas_dia: vendasDia[0].total,
       total_produtos: totalProdutos[0].total,
       vendas_por_dia: vendasPorDiaRows,
       vendas_por_categoria: vendasPorCategoriaRows,
-      status_estoque: statusEstoqueRows[0] || { baixo: 0, normal: 0, alto: 0 },
+      status_estoque: statusEstoque,
       produtos_baixo_estoque: produtosBaixoEstoqueRows
     }
 

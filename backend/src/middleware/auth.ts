@@ -2,20 +2,22 @@ import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import { getDatabase } from '../database/connection'
 
+export interface Permissions {
+  pdv: boolean
+  products: boolean
+  dashboard: boolean
+  reports: boolean
+  estoque: boolean
+  funcionarios: boolean
+  financeiro: boolean
+}
+
 export interface AuthRequest extends Request {
   user?: {
     id: number
     username: string
     role: 'admin' | 'gerente' | 'funcionario'
-    permissions?: {
-      pdv: boolean
-      products: boolean
-      dashboard: boolean
-      reports: boolean
-      estoque: boolean
-      funcionarios: boolean
-      financeiro: boolean
-    }
+    permissions: Permissions
   }
 }
 
@@ -55,34 +57,28 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
     console.log('👤 Usuário encontrado:', user.username, 'Role:', user.role)
     
     // Parse permissions
-    let permissions = {}
+    let permissions: Permissions
+    const defaultPermissions: Permissions = {
+      pdv: false,
+      products: false,
+      dashboard: true, // Dashboard obrigatório para todos
+      reports: false,
+      estoque: false,
+      funcionarios: false,
+      financeiro: false
+    }
+    
     try {
       if (typeof user.permissions === 'string') {
-        permissions = JSON.parse(user.permissions)
+        permissions = { ...defaultPermissions, ...JSON.parse(user.permissions) }
       } else if (typeof user.permissions === 'object' && user.permissions !== null) {
-        permissions = user.permissions
+        permissions = { ...defaultPermissions, ...user.permissions }
       } else {
-        permissions = {
-          pdv: false,
-          products: false,
-          dashboard: true, // Dashboard obrigatório para todos
-          reports: false,
-          estoque: false,
-          funcionarios: false,
-          financeiro: false
-        }
+        permissions = defaultPermissions
       }
     } catch (e) {
       console.log('⚠️ Erro ao parsear permissões, usando padrão')
-      permissions = {
-        pdv: false,
-        products: false,
-        dashboard: true, // Dashboard obrigatório para todos
-        reports: false,
-        estoque: false,
-        funcionarios: false,
-        financeiro: false
-      }
+      permissions = defaultPermissions
     }
     
     // Garantir que Dashboard sempre seja true
@@ -95,10 +91,13 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
       permissions
     }
     
-    console.log('✅ Usuário autenticado:', req.user.username, 'Permissões:', req.user.permissions)
+    if (req.user) {
+        console.log('✅ Usuário autenticado:', req.user.username, 'Permissões:', req.user.permissions)
+    }
     next()
   } catch (error) {
-    console.log('❌ Token inválido:', error.message)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.log('❌ Token inválido:', errorMessage)
     return res.status(403).json({ error: 'Token inválido' })
   }
 }
@@ -114,42 +113,46 @@ export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction
   next()
 }
 
-export function checkPermission(permission: keyof AuthRequest['user']['permissions']) {
+export function checkPermission(permission: keyof Permissions) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
-    console.log(`🔍 Verificando permissão '${permission}' para usuário:`, req.user?.username)
+    console.log(`🔍 Verificando permissão '${String(permission)}' para usuário:`, req.user?.username)
     
-    if (req.user?.role === 'admin') {
+    if (!req.user) {
+        return res.status(401).json({ error: 'Usuário não autenticado.' });
+    }
+
+    if (req.user.role === 'admin') {
       console.log('✅ Admin tem todas as permissões')
       // Admin tem todas as permissões
       return next()
     }
 
-    if (req.user?.role === 'gerente') {
+    if (req.user.role === 'gerente') {
       // Gerente tem acesso automático a funcionários e financeiro
       if (permission === 'funcionarios' || permission === 'financeiro') {
-        console.log('✅ Gerente tem acesso automático a:', permission)
+        console.log('✅ Gerente tem acesso automático a:', String(permission))
         return next()
       }
       
       // Para outras permissões, verificar se tem a permissão específica
-      if (req.user?.permissions?.[permission]) {
-        console.log('✅ Gerente tem permissão específica:', permission)
+      if (req.user.permissions?.[permission]) {
+        console.log('✅ Gerente tem permissão específica:', String(permission))
         return next()
       }
     }
 
-    if (req.user?.role === 'funcionario') {
+    if (req.user.role === 'funcionario') {
       // Funcionário precisa ter a permissão específica
-      if (!req.user?.permissions?.[permission]) {
-        console.log('❌ Funcionário não tem permissão:', permission)
-        return res.status(403).json({ error: `Acesso negado. Permissão '${permission}' necessária.` })
+      if (!req.user.permissions?.[permission]) {
+        console.log('❌ Funcionário não tem permissão:', String(permission))
+        return res.status(403).json({ error: `Acesso negado. Permissão '${String(permission)}' necessária.` })
       }
-      console.log('✅ Funcionário tem permissão:', permission)
+      console.log('✅ Funcionário tem permissão:', String(permission))
       return next()
     }
 
-    console.log('❌ Acesso negado para permissão:', permission)
-    return res.status(403).json({ error: `Acesso negado. Permissão '${permission}' necessária.` })
+    console.log('❌ Acesso negado para permissão:', String(permission))
+    return res.status(403).json({ error: `Acesso negado. Permissão '${String(permission)}' necessária.` })
   }
 }
 
