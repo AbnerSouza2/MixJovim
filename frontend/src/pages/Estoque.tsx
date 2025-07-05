@@ -227,7 +227,8 @@ export default function Estoque() {
     const productName = produto.descricao;
     const fromPrice = `DE R$ ${Number(produto.valor_unitario).toFixed(2).replace('.', ',')}`;
     const mainPrice = `R$ ${Number(produto.valor_venda).toFixed(2).replace('.', ',')}`;
-    const barcodeValue = produto.codigo_barras_1 || `${produto.id}`.padStart(13, '0');
+    // Priorizar codigo_barras_1, depois codigo_barras_2, por último ID do produto
+    const barcodeValue = produto.codigo_barras_1 || produto.codigo_barras_2 || `${produto.id}`.padStart(13, '0');
     
     let labelsHtml = '';
     for (let i = 0; i < quantity; i++) {
@@ -363,8 +364,18 @@ export default function Estoque() {
         
         await api.put(`/products/${produto.id}`, updatedProduct);
 
+        // Atualizar o estado local imediatamente para refletir os novos códigos
+        setDetalhes(prevDetalhes => 
+            prevDetalhes.map(p => 
+                p.id === produto.id 
+                    ? { ...p, codigo_barras_1, codigo_barras_2 }
+                    : p
+            )
+        );
+
         toast.success('Códigos de barras gerados e salvos com sucesso!');
-        fetchDetalhes(); // Recarregar os detalhes para mostrar os novos códigos
+        // Recarregar os detalhes para garantir sincronização com o servidor
+        fetchDetalhes();
     } catch (error: any) {
         toast.error(`Erro ao gerar ou salvar códigos de barras: ${error.response?.data?.error || error.message}`);
     }
