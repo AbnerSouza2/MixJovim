@@ -132,22 +132,27 @@ router.get('/detalhes', async (req, res) => {
         p.codigo_barras_2,
         p.valor_unitario,
         p.valor_venda,
-        COALESCE(SUM(CASE WHEN e.tipo = 'conferido' THEN e.quantidade ELSE 0 END), 0) as estoque_conferido,
-        COALESCE(SUM(CASE WHEN e.tipo = 'perda' THEN e.quantidade ELSE 0 END), 0) as perdas,
+        COALESCE(e.total_conferido, 0) as estoque_conferido,
+        COALESCE(e.total_perdas, 0) as perdas,
         COALESCE(pv.quantidade_vendida, 0) as quantidade_vendida,
-        (COALESCE(SUM(CASE WHEN e.tipo = 'conferido' THEN e.quantidade ELSE 0 END), 0) -
-         COALESCE(pv.quantidade_vendida, 0)) as quantidade_disponivel,
-        GROUP_CONCAT(DISTINCT CASE WHEN e.tipo = 'conferido' THEN u.username END SEPARATOR ', ') as conferentes,
-        MAX(CASE WHEN e.tipo = 'conferido' THEN e.created_at END) as ultima_conferencia
+        (COALESCE(e.total_conferido, 0) - COALESCE(pv.quantidade_vendida, 0)) as quantidade_disponivel,
+        e.conferentes,
+        e.ultima_conferencia
       FROM products p
-      LEFT JOIN estoque e ON p.id = e.produto_id
-      LEFT JOIN users u ON e.usuario_id = u.id
+      LEFT JOIN (
+          SELECT 
+              produto_id,
+              SUM(CASE WHEN tipo = 'conferido' THEN quantidade ELSE 0 END) as total_conferido,
+              SUM(CASE WHEN tipo = 'perda' THEN quantidade ELSE 0 END) as total_perdas,
+              GROUP_CONCAT(DISTINCT CASE WHEN tipo = 'conferido' THEN u.username END SEPARATOR ', ') as conferentes,
+              MAX(CASE WHEN tipo = 'conferido' THEN created_at END) as ultima_conferencia
+          FROM estoque
+          LEFT JOIN users u ON estoque.usuario_id = u.id
+          GROUP BY produto_id
+      ) e ON p.id = e.produto_id
       LEFT JOIN produto_vendas pv ON p.id = pv.produto_id
-      GROUP BY p.id, p.descricao, p.categoria, p.valor_unitario, p.valor_venda, p.codigo_barras_1, p.codigo_barras_2, pv.quantidade_vendida
-      HAVING (COALESCE(SUM(CASE WHEN e.tipo = 'conferido' THEN e.quantidade ELSE 0 END), 0) -
-              COALESCE(pv.quantidade_vendida, 0)) > 0 
-             OR COALESCE(SUM(CASE WHEN e.tipo = 'perda' THEN e.quantidade ELSE 0 END), 0) > 0
-      ORDER BY quantidade_disponivel DESC, p.descricao
+      HAVING quantidade_disponivel > 0 OR perdas > 0
+      ORDER BY p.descricao ASC
     `)
     
     res.json(rows)
