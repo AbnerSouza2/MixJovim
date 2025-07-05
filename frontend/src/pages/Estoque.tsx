@@ -27,6 +27,7 @@ interface DetalheProduto {
   id: number
   descricao: string
   categoria: string
+  codigo_barras_1?: string
   valor_unitario: number
   valor_venda: number
   estoque_conferido: number
@@ -224,7 +225,7 @@ export default function Estoque() {
     const productName = produto.descricao;
     const fromPrice = `DE R$ ${Number(produto.valor_unitario).toFixed(2).replace('.', ',')}`;
     const mainPrice = `R$ ${Number(produto.valor_venda).toFixed(2).replace('.', ',')}`;
-    const barcodeValue = `${produto.id}`.padStart(13, '0');
+    const barcodeValue = produto.codigo_barras_1 || `${produto.id}`.padStart(13, '0');
     
     let labelsHtml = '';
     for (let i = 0; i < quantity; i++) {
