@@ -1321,11 +1321,11 @@ export default function AddProduct() {
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Código de Barras 1
+                Código de Barras 1 *
               </label>
               <div className="relative">
                 <input
-                  {...register('codigo_barras_1')}
+                  {...register('codigo_barras_1', { required: 'O primeiro código de barras é obrigatório' })}
                   className="input-field w-full pr-20"
                   placeholder="Digite o código de barras"
                 />
@@ -1343,11 +1343,11 @@ export default function AddProduct() {
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Código de Barras 2
+                Código de Barras 2 *
               </label>
               <div className="relative">
                 <input
-                  {...register('codigo_barras_2')}
+                  {...register('codigo_barras_2', { required: 'O segundo código de barras é obrigatório' })}
                   className="input-field w-full pr-20"
                   placeholder="Digite o código de barras alternativo"
                 />
@@ -2054,11 +2054,11 @@ export default function AddProduct() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Código de Barras 1
+                  Código de Barras 1 *
                 </label>
                 <div className="relative">
                   <input
-                    {...register('codigo_barras_1')}
+                    {...register('codigo_barras_1', { required: 'O primeiro código de barras é obrigatório' })}
                     className="input-field w-full pr-20"
                     placeholder="Digite o código de barras"
                   />
@@ -2076,11 +2076,11 @@ export default function AddProduct() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Código de Barras 2
+                  Código de Barras 2 *
                 </label>
                 <div className="relative">
                   <input
-                    {...register('codigo_barras_2')}
+                    {...register('codigo_barras_2', { required: 'O segundo código de barras é obrigatório' })}
                     className="input-field w-full pr-20"
                     placeholder="Digite o código de barras alternativo"
                   />

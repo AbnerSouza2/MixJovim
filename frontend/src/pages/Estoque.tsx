@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Trash2, ClipboardCheck, AlertTriangle, Package, User, Search, X, Printer } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
+import toast from 'react-hot-toast'
 
 interface EstoqueItem {
   id: number
@@ -338,6 +339,59 @@ export default function Estoque() {
     setShowLabelModal(true);
   };
 
+  const handleGenerateMissingCodes = async (produto: DetalheProduto) => {
+    try {
+        let { codigo_barras_1, codigo_barras_2 } = produto;
+
+        if (!codigo_barras_1) {
+            codigo_barras_1 = await generateRandomBarcode();
+        }
+        if (!codigo_barras_2) {
+            codigo_barras_2 = await generateRandomBarcode();
+        }
+
+        // Criar objeto apenas com os campos necessários para o backend
+        const updatedProduct = {
+            descricao: produto.descricao,
+            quantidade: produto.estoque_conferido || 0,
+            valor_unitario: produto.valor_unitario,
+            valor_venda: produto.valor_venda,
+            categoria: produto.categoria,
+            codigo_barras_1,
+            codigo_barras_2
+        };
+        
+        await api.put(`/products/${produto.id}`, updatedProduct);
+
+        toast.success('Códigos de barras gerados e salvos com sucesso!');
+        fetchDetalhes(); // Recarregar os detalhes para mostrar os novos códigos
+    } catch (error: any) {
+        toast.error(`Erro ao gerar ou salvar códigos de barras: ${error.response?.data?.error || error.message}`);
+    }
+  };
+
+  const generateRandomBarcode = async (): Promise<string> => {
+    let attempts = 0;
+    const maxAttempts = 100;
+
+    while (attempts < maxAttempts) {
+        const randomCode = Math.floor(10000000 + Math.random() * 90000000).toString();
+        
+        try {
+            const response = await api.get(`/products/search?q=${randomCode}`);
+            
+            if (response.data.length === 0) {
+                return randomCode;
+            }
+        } catch (error) {
+            // Se a busca falhar, assume que o código não existe e o retorna
+            return randomCode;
+        }
+        attempts++;
+    }
+    throw new Error('Não foi possível gerar um código de barras único.');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -535,14 +589,25 @@ export default function Estoque() {
                             {formatCurrency(produto.valor_venda)} {/* Valor sempre visível para todos */}
                           </td>
                           <td className="py-2 sm:py-3 px-2 sm:px-4 text-center">
-                            <button
-                              onClick={() => openLabelModal(produto)}
-                              className="inline-flex items-center px-2 py-1 border border-blue-600 rounded-md text-xs font-medium text-blue-300 bg-blue-800/20 hover:bg-blue-700/30 focus:outline-none focus:border-blue-500 transition-colors"
-                              title="Imprimir etiqueta do produto"
-                            >
-                              <Printer className="w-3 h-3 mr-1" />
-                              Etiqueta
-                            </button>
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => openLabelModal(produto)}
+                                className="inline-flex items-center px-2 py-1 border border-blue-600 rounded-md text-xs font-medium text-blue-300 bg-blue-800/20 hover:bg-blue-700/30 focus:outline-none focus:border-blue-500 transition-colors"
+                                title="Imprimir etiqueta do produto"
+                              >
+                                <Printer className="w-3 h-3 mr-1" />
+                                Etiqueta
+                              </button>
+                              {(!produto.codigo_barras_1 || !produto.codigo_barras_2) && (
+                                <button
+                                  onClick={() => handleGenerateMissingCodes(produto)}
+                                  className="inline-flex items-center px-2 py-1 border border-yellow-600 rounded-md text-xs font-medium text-yellow-300 bg-yellow-800/20 hover:bg-yellow-700/30 focus:outline-none focus:border-yellow-500 transition-colors"
+                                  title="Gerar códigos de barras faltantes"
+                                >
+                                  Gerar Código
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}

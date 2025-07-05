@@ -208,8 +208,8 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
       codigo_barras_2
     } = req.body
 
-    if (!descricao || quantidade === undefined || valor_unitario === undefined || valor_venda === undefined || !categoria) {
-      return res.status(400).json({ error: 'Campos obrigatórios não preenchidos' })
+    if (!descricao || quantidade === undefined || valor_unitario === undefined || valor_venda === undefined || !categoria || !codigo_barras_1 || !codigo_barras_2) {
+      return res.status(400).json({ error: 'Todos os campos, incluindo os dois códigos de barras, são obrigatórios.' })
     }
 
     const db = getDatabase()
