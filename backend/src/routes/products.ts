@@ -162,6 +162,7 @@ router.get('/search', authenticateToken, async (req: AuthRequest, res) => {
     const db = getDatabase()
     const searchTerm = `%${query}%`
     
+    // Busca por correspondência exata nos códigos de barras e parcial na descrição
     const [productRows] = await db.execute(
       `SELECT * FROM products 
        WHERE descricao LIKE ? 
@@ -171,6 +172,21 @@ router.get('/search', authenticateToken, async (req: AuthRequest, res) => {
        LIMIT 10`,
       [searchTerm, query, query]
     )
+
+    // Se não encontrou por correspondência exata, tenta com LIKE para os códigos
+    if ((productRows as any[]).length === 0) {
+        console.log(`[PDV Search] Nenhum resultado exato para "${query}". Tentando busca parcial...`);
+        const [partialMatchRows] = await db.execute(
+            `SELECT * FROM products 
+             WHERE codigo_barras_1 LIKE ? 
+             OR codigo_barras_2 LIKE ?
+             ORDER BY descricao ASC 
+             LIMIT 10`,
+            [searchTerm, searchTerm]
+        );
+        res.json(partialMatchRows);
+        return;
+    }
 
     res.json(productRows)
   } catch (error) {

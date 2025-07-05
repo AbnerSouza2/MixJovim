@@ -28,6 +28,7 @@ interface DetalheProduto {
   descricao: string
   categoria: string
   codigo_barras_1?: string
+  codigo_barras_2?: string
   valor_unitario: number
   valor_venda: number
   estoque_conferido: number
@@ -466,6 +467,13 @@ export default function Estoque() {
                             <div className="max-w-[150px] sm:max-w-none truncate" title={produto.descricao}>
                               {produto.descricao}
                             </div>
+                            {(produto.codigo_barras_1 || produto.codigo_barras_2) && (
+                              <div className="text-xs text-gray-400 mt-1">
+                                <span>{produto.codigo_barras_1}</span>
+                                <span className="mx-1">{produto.codigo_barras_1 && produto.codigo_barras_2 ? '|' : ''}</span>
+                                <span>{produto.codigo_barras_2}</span>
+                              </div>
+                            )}
                             <div className="sm:hidden text-xs text-gray-400 mt-1">
                               {produto.categoria}
                             </div>
