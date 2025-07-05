@@ -151,7 +151,7 @@ router.get('/detalhes', async (req, res) => {
           GROUP BY produto_id
       ) e ON p.id = e.produto_id
       LEFT JOIN produto_vendas pv ON p.id = pv.produto_id
-      HAVING quantidade_disponivel > 0 OR perdas > 0
+      HAVING (COALESCE(e.total_conferido, 0) - COALESCE(pv.quantidade_vendida, 0)) > 0 OR COALESCE(e.total_perdas, 0) > 0
       ORDER BY p.descricao ASC
     `)
     
