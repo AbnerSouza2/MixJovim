@@ -239,6 +239,7 @@ export default function Estoque() {
           <div class="main-price">${mainPrice}</div>
           <div class="barcode-container">
             <svg id="barcode-${i}" class="barcode"></svg>
+            <div class="barcode-number">${barcodeValue}</div>
           </div>
         </div>
       `;
@@ -275,16 +276,16 @@ export default function Estoque() {
                 page-break-after: always;
               }
               .product-name {
-                font-size: 6.5pt;
+                font-size: 4.5pt;
                 font-weight: bold;
                 line-height: 1;
                 margin: 0;
                 word-break: break-word;
               }
               .from-price {
-                font-size: 6.5pt;
+                font-size: 5.5pt;
                 color: #000000;
-                margin: 0.5mm 0;
+                margin: 0.9mm 0;
               }
               .main-price {
                 font-size: 13pt;
@@ -293,6 +294,7 @@ export default function Estoque() {
               }
               .barcode-container {
                 display: flex;
+                flex-direction: column;
                 justify-content: center;
                 align-items: center;
                 width: 100%;
@@ -301,6 +303,13 @@ export default function Estoque() {
               .barcode {
                 width: 100%;
                 height: 100%;
+              }
+              .barcode-number {
+                font-size: 3pt;
+                font-family: monospace;
+                color: #000000;
+              
+                letter-spacing: 0.2mm;
               }
             </style>
           </head>
