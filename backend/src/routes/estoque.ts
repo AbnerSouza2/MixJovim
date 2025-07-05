@@ -143,7 +143,7 @@ router.get('/detalhes', async (req, res) => {
       LEFT JOIN estoque e ON p.id = e.produto_id
       LEFT JOIN users u ON e.usuario_id = u.id
       LEFT JOIN produto_vendas pv ON p.id = pv.produto_id
-      GROUP BY p.id, p.descricao, p.categoria, p.valor_venda, pv.quantidade_vendida
+      GROUP BY p.id, p.descricao, p.categoria, p.valor_unitario, p.valor_venda, p.codigo_barras_1, p.codigo_barras_2, pv.quantidade_vendida
       HAVING (COALESCE(SUM(CASE WHEN e.tipo = 'conferido' THEN e.quantidade ELSE 0 END), 0) -
               COALESCE(pv.quantidade_vendida, 0)) > 0 
              OR COALESCE(SUM(CASE WHEN e.tipo = 'perda' THEN e.quantidade ELSE 0 END), 0) > 0
