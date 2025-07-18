@@ -561,7 +561,7 @@ export default function AddProduct() {
     if (!product || quantity <= 0) return;
 
     const productName = product.descricao;
-    const fromPrice = `DE R$ ${Number(product.valor_unitario).toFixed(2).replace('.', ',')}`;
+    const fromPriceValue = `R$ ${Number(product.valor_unitario).toFixed(2).replace('.', ',')}`;
     const mainPrice = `R$ ${Number(product.valor_venda).toFixed(2).replace('.', ',')}`;
     const barcodeValue = product.codigo_barras_1 || `${product.id}`.padStart(13, '0');
 
@@ -570,7 +570,11 @@ export default function AddProduct() {
       labelsHtml += `
         <div class="label">
           <div class="product-name">${productName.toUpperCase()}</div>
-          <div class="from-price">${fromPrice}</div>
+          <div class="from-price">
+            <span class="de-text">DE</span>
+            <span class="from-price-value">${fromPriceValue}</span>
+          </div>
+          <div class="por-text">POR</div>
           <div class="main-price">${mainPrice}</div>
           <div class="barcode-container">
             <svg id="barcode-${i}" class="barcode"></svg>
@@ -610,21 +614,40 @@ export default function AddProduct() {
                 page-break-after: always;
               }
               .product-name {
-                font-size: 6.5pt;
+                font-size: 5.5pt;
                 font-weight: bold;
                 line-height: 1;
                 margin: 0;
+                margin-top: 2mm;
                 word-break: break-word;
               }
               .from-price {
-                font-size: 6.5pt;
                 color: #000000;
+                margin-top: 1mm!important;
                 margin: 0.5mm 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 2px;
+              }
+              .de-text {
+                font-size: 10pt;
+                color: #000000;
+              }
+              .from-price-value {
+                font-size: 10pt;
+                color: #000000;
+              }
+              .por-text {
+                font-size: 6pt;
+                font-weight: bold;
+                color: #000000;
+            
               }
               .main-price {
-                font-size: 13pt;
+                font-size: 16pt;
                 font-weight: 900;
-                margin: 0.5mm 0;
+                margin-top: -1mm;
               }
               .barcode-container {
                 display: flex;
@@ -632,6 +655,7 @@ export default function AddProduct() {
                 align-items: center;
                 width: 100%;
                 height: 14mm;
+                margin-top: -2.4mm;
               }
               .barcode {
                 width: 100%;
