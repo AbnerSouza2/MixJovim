@@ -241,16 +241,29 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
 router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params
-    const {
-      descricao,
-      quantidade,
-      valor_unitario,
-      valor_venda,
-      categoria,
-      codigo_barras_1,
-      codigo_barras_2
-    } = req.body
-
+    const allowedFields = [
+      'descricao',
+      'quantidade',
+      'valor_unitario',
+      'valor_venda',
+      'categoria',
+      'codigo_barras_1',
+      'codigo_barras_2'
+    ];
+    const updates = [];
+    const values = [];
+    
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updates.push(`${field} = ?`);
+        values.push(req.body[field]);
+      }
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Nenhum campo válido para atualizar.' });
+    }
+    
     const db = getDatabase()
     
     // Verificar se produto existe
@@ -260,13 +273,11 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Produto não encontrado' })
     }
 
-    await db.execute(
-      `UPDATE products SET 
-       descricao = ?, quantidade = ?, valor_unitario = ?, valor_venda = ?, 
-       categoria = ?, codigo_barras_1 = ?, codigo_barras_2 = ?
-       WHERE id = ?`,
-      [descricao, quantidade, valor_unitario, valor_venda, categoria, codigo_barras_1 || null, codigo_barras_2 || null, id]
-    )
+    // Montar query dinamicamente apenas com os campos enviados
+    const query = `UPDATE products SET ${updates.join(', ')} WHERE id = ?`;
+    values.push(id);
+    
+    await db.execute(query, values);
 
     // Buscar produto atualizado
     const [updatedRows] = await db.execute('SELECT * FROM products WHERE id = ?', [id])

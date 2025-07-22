@@ -195,7 +195,9 @@ export default function Estoque() {
       // Filtrar detalhes
       const filteredDet = detalhes.filter(produto =>
         produto.descricao.toLowerCase().includes(lowerSearchTerm) ||
-        produto.categoria.toLowerCase().includes(lowerSearchTerm)
+        produto.categoria.toLowerCase().includes(lowerSearchTerm) ||
+        (produto.codigo_barras_1 && produto.codigo_barras_1.toLowerCase().includes(lowerSearchTerm)) ||
+        (produto.codigo_barras_2 && produto.codigo_barras_2.toLowerCase().includes(lowerSearchTerm))
       )
       setFilteredDetalhes(filteredDet)
       
@@ -377,11 +379,6 @@ export default function Estoque() {
 
         // Criar objeto apenas com os campos necessários para o backend
         const updatedProduct = {
-            descricao: produto.descricao,
-            quantidade: produto.estoque_conferido || 0,
-            valor_unitario: produto.valor_unitario,
-            valor_venda: produto.valor_venda,
-            categoria: produto.categoria,
             codigo_barras_1,
             codigo_barras_2
         };
